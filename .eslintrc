@@ -1,0 +1,106 @@
+{
+  "root": true,
+  "env": {
+    "browser": false,
+    "es2021": true,
+    "node": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "lodash", "chai-friendly"],
+  "overrides": [{
+    "files": ["*.ts"],
+    "parserOptions": {
+      "ecmaVersion": 2021,
+      "project": ["./tsconfig.json"]
+    },
+    "extends": [
+      "eslint:recommended",
+      "airbnb-base",
+      "plugin:@typescript-eslint/eslint-recommended",
+      "plugin:@typescript-eslint/recommended",
+      "plugin:@typescript-eslint/recommended-requiring-type-checking",
+      "plugin:import/recommended",
+      "plugin:import/typescript",
+      "plugin:lodash/canonical"
+    ],
+    "settings": {
+      "import/resolver": {
+        "typescript": {}
+      }
+    },
+    "rules": {
+      // Changed
+
+      "chai-friendly/no-unused-expressions": "error",
+      "array-element-newline": ["error", "consistent"],
+      "import/order": ["error", { "newlines-between": "always" }],
+      "max-len": ["error", { "code": 120, "ignoreStrings": true }],
+      "object-curly-newline": ["error", { "consistent": true }],
+      "object-curly-spacing": ["error", "always"],
+      "quote-props": ["error", "consistent"],
+      "quotes": ["error", "single"],
+
+      "@typescript-eslint/no-unused-vars": ["error", {
+        "args": "all",
+        "argsIgnorePattern": "^_",
+        "vars": "all",
+        "varsIgnorePattern": "^_"
+      }],
+
+      // Disabled
+      
+      "no-unused-expressions": "off",
+      "import/prefer-default-export": "off",
+      "no-console": "off",
+      "no-continue": "off",
+      "no-mixed-operators": "off",
+      "no-nested-ternary": "off",
+      "no-plusplus": "off",
+      "no-restricted-syntax": "off",
+      "no-use-before-define": "off",
+      "operator-linebreak": "off",
+      "prefer-template": "off",
+      "space-infix-ops": "off",
+      "no-constant-condition": "off",
+      "no-await-in-loop": "off",
+      "no-return-await": "off",
+      "lodash/prefer-lodash-method": "off",
+      "import/extensions": "off",
+      "class-methods-use-this": "off",
+      "lodash/import-scope": "off",
+      "lodash/prefer-lodash-chain": "off",
+      "lodash/chaining": "off",
+      "lodash/prefer-constant": "off",
+      "linebreak-style": "off",
+
+      "no-param-reassign": ["error", { "props": false }],
+
+      // Override: @typescript-eslint/X > eslint/X
+
+      "lines-between-class-members": [2, "never"],
+      "@typescript-eslint/lines-between-class-members": "off",
+
+      "no-shadow": "off",
+      "@typescript-eslint/no-shadow": "error",
+
+      "no-useless-constructor": "off",
+      "@typescript-eslint/no-useless-constructor": "error",
+
+      "semi": [2, "never"],
+      "@typescript-eslint/semi": ["off"],
+      "@typescript-eslint/member-delimiter-style": "error",
+
+      "no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/restrict-template-expressions": "off",
+
+      "@typescript-eslint/no-misused-promises": "off",
+
+      "@typescript-eslint/no-floating-promises": ["error", {
+        "ignoreVoid": true
+      }]
+    }
+  }]
+}

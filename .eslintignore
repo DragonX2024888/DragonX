@@ -1,0 +1,4 @@
+**/*.json
+node_modules/**
+artifacts/**
+typechain-types/**
