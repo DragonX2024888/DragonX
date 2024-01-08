@@ -55,6 +55,14 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     uint256 public mintPhaseEnd;
 
     /**
+     * @notice Timestamp for Mint Ratio Reduction
+     * @dev This timestamp, expressed in UTC seconds, marks the point at which the minting ratio
+     * between TitanX and DragonX changes. Prior to this timestamp, the mint ratio is 1:1. After this
+     * timestamp, the mint ratio is reduced, with 1 TitanX yielding only 0.95 DragonX.
+     */
+    uint256 public mintRatioReductionTs;
+
+    /**
      * @notice The time when it's possible to open a new TitanX stake after the cooldown.
      * This cooldown period controls the frequency of new stakes being initiated.
      */
@@ -297,7 +305,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * Users can transfer TitanX to the DragonX contract to mint an equivalent amount of DragonX tokens.
      * The minting process is available only during a specified time frame.
      * When minting, 8% of the total minted DragonX supply and 8% of the TitanX used for minting
-     * are allocated to the development team. The remaining TitanX is retained within the contract.
+     * are allocated to the genesis address. The remaining TitanX is retained within the contract.
      * Minting starts once the initial liquidity has been minted (indicating all other contracts)
      * have been deployed and initialized successfully by the genesis address.
      * @param amount The amount of DragonX tokens to be minted.
@@ -330,19 +338,29 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         // Transfer TitanX from the user to this contract
         titanX.safeTransferFrom(_msgSender(), address(this), amount);
 
+        uint256 mintAmount = amount;
+
+        // reduce mint amount after certain timestamp
+        if (block.timestamp >= mintRatioReductionTs) {
+            mintAmount = (amount * REDUCED_MINT_RATIO) / BASIS;
+        }
+
         // Mint an equivalent amount of DragonX tokens
-        _mint(_msgSender(), amount);
+        _mint(_msgSender(), mintAmount);
 
-        // Calculate and mint the development team's 8% share
-        uint256 genesisShare = (amount * 800) / BASIS;
-        _mint(address(this), genesisShare);
+        // Calculate and mint the genesis 8% share (of total supply minted)
+        uint256 dragonGenesisShare = (mintAmount * 800) / BASIS;
+        _mint(address(this), dragonGenesisShare);
 
-        // Allocate 8% of both TitanX and DragonX to the development team's vault
-        _genesisVault[address(this)] = genesisShare;
-        _genesisVault[address(titanX)] = genesisShare;
+        // Allocate 8% of DragonX to the genesis vault
+        _genesisVault[address(this)] += dragonGenesisShare;
+
+        // Allocate 8% of total TitanX send to DragonX to genesis vault
+        uint256 titanGenesisShare = (amount * 800) / BASIS;
+        _genesisVault[address(titanX)] += titanGenesisShare;
 
         // Retain the remaining TitanX within the contract's vault
-        vault = amount - genesisShare;
+        vault += amount - titanGenesisShare;
     }
 
     /**
@@ -514,8 +532,9 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         uint256 currentTimestamp = block.timestamp;
         uint256 secondsUntilMidnight = 86400 - (currentTimestamp % 86400);
         mintPhaseBegin = currentTimestamp + secondsUntilMidnight;
-        mintPhaseEnd = mintPhaseBegin + 30 days;
+        mintPhaseEnd = mintPhaseBegin + 35 days;
         nextStakeTs = mintPhaseBegin + 7 days;
+        mintRatioReductionTs = mintPhaseBegin + 7 days;
     }
 
     /**

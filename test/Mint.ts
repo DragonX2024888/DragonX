@@ -64,7 +64,7 @@ describe('Mint', () => {
     await expect(dragonX.connect(user).mint(await titanX.balanceOf(user.address) + 1n))
       .to.be.revertedWithCustomError(dragonX, 'InsufficientTitanXBalance')
   })
-  it('Should mint the correct amount of DragonX tokens', async () => {
+  it('Should mint the correct amount of DragonX tokens, 1:1 in the beginning', async () => {
     const { dragonX, titanX, swap, user, initialLiquidity } = await loadFixture(deployDragonXFixture)
 
     // Users swaps ETH for TitanX on UniSwap
@@ -94,6 +94,66 @@ describe('Mint', () => {
     expect(await dragonX.balanceOf(await dragonX.getAddress())).to.be.equal(expectedGenesisShare)
     expect(await dragonX.totalSupply()).to.be.equal(expectedDragonXtotalSupply)
     expect(await dragonX.vault()).to.be.equal(dragonXexpectedTitanXvault)
+  })
+  it('Should mint the correct amount of DragonX token after reducing to a 1:0.95 ratio', async () => {
+    const { swap, dragonX, titanX, user, genesis } = await loadFixture(deployDragonXFixture)
+
+    // Users swaps ETH for TitanX on UniSwap
+    await expect(swap.connect(user).swapETHForTitanX({ value: ethers.parseEther('1') })).to.not.be.reverted
+
+    const balanceBefore = await titanX.balanceOf(user.address)
+    expect(balanceBefore).to.be.greaterThan(0n)
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(0n)
+
+    // Market Buy exactly one DragonX using TitanX
+    const firstMint = (balanceBefore * 5000n) / Constants.BASIS
+    const secondMint = (balanceBefore * 5000n) / Constants.BASIS
+    const dragonAfterFirstMint = firstMint // 1:1
+    const dragonAfterSecondMint = (secondMint * 9500n) / Constants.BASIS // 1:0.95
+    const totalDragonMinted = dragonAfterFirstMint + dragonAfterSecondMint
+
+    // Genesis receives 8% of total supply TitanX send to DragonX
+    const genesisShareFirstMint = (firstMint * 800n) / Constants.BASIS
+    const genesisShareSecondtMint = (secondMint * 800n) / Constants.BASIS
+
+    // Genesis receives 8% of total DragonX minted
+    const dragonGenesisShareFirstMint = (dragonAfterFirstMint * 800n) / Constants.BASIS
+    const dragonGenesisShareSecondMint = (dragonAfterSecondMint * 800n) / Constants.BASIS
+
+    const totalDragonGenesisShare = dragonGenesisShareFirstMint + dragonGenesisShareSecondMint
+    const totalTitanGenesisShare = genesisShareFirstMint + genesisShareSecondtMint
+    const totalTitanInVault = firstMint + secondMint - totalTitanGenesisShare
+
+    // Users mints first time
+    await time.increaseTo(
+      await dragonX.mintPhaseBegin(),
+    )
+    await titanX.connect(user).approve(await dragonX.getAddress(), firstMint)
+    await expect(dragonX.connect(user).mint(firstMint))
+      .to.not.be.reverted
+
+    // Check balances
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(dragonAfterFirstMint)
+
+    // Users mints second time
+    await time.increaseTo(
+      await dragonX.mintRatioReductionTs(),
+    )
+    await titanX.connect(user).approve(await dragonX.getAddress(), secondMint)
+    await expect(dragonX.connect(user).mint(secondMint))
+      .to.not.be.reverted
+
+    // Check balances
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(totalDragonMinted)
+    expect(await dragonX.vault()).to.be.equal(totalTitanInVault)
+
+    // Ensure genesis vault has correct amoun
+    expect(await titanX.balanceOf(genesis.address)).to.be.equal(0n)
+    expect(await dragonX.balanceOf(genesis.address)).to.be.equal(0n)
+    await expect(dragonX.connect(genesis).claimGenesis(await dragonX.getAddress())).not.to.be.reverted
+    await expect(dragonX.connect(genesis).claimGenesis(await titanX.getAddress())).not.to.be.reverted
+    expect(await titanX.balanceOf(genesis.address)).to.be.equal(totalTitanGenesisShare)
+    expect(await dragonX.balanceOf(genesis.address)).to.be.equal(totalDragonGenesisShare)
   })
   describe('initial liquditiy', () => {
     it('Should revert if initial liquidity has not been minted', async () => {
