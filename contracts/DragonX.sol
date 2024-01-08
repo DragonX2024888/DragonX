@@ -115,6 +115,12 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      */
     mapping(address => uint256) private _genesisVault;
 
+    /**
+     * @dev Mapping of address to bool indicating if an address is allowed to send ETH
+     * to DragonX limiting EOA addresses from accidently sending ETH to DragonX
+     */
+    mapping(address => bool) private _receiveEthAllowlist;
+
     // -----------------------------------------
     // Errors
     // -----------------------------------------
@@ -216,6 +222,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * @param dragonBuyAndBurn Amount transfered to DragonBuyAndBurn
      * @param genesis Amount accounted to genesis
      * @param incentiveFee Incentive see send to caller
+     * (this might include the incentice for calling triggerPayouts on TitanX)
      */
     event Claimed(
         address indexed caller,
@@ -265,6 +272,9 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
 
         // set other states
         initalLiquidityMinted = InitialLiquidityMinted.No;
+
+        // Allow TitanX to send ETH to DragonX (incentive fee)
+        _receiveEthAllowlist[TITANX_ADDRESS] = true;
     }
 
     // -----------------------------------------
@@ -275,15 +285,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * Reverts if the sender is not one of the DragonStake contracts.
      */
     receive() external payable {
-        bool found = false;
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
-            if (msg.sender == dragonStakeContracts[idx]) {
-                found = true;
-                break;
-            }
-        }
-
-        require(found, "Sender not authorized");
+        require(_receiveEthAllowlist[msg.sender], "Sender not authorized");
     }
 
     // -----------------------------------------
@@ -430,6 +432,14 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
             revert TitanXBuyContractNotConfigured();
         }
 
+        // Trigger payouts on TitanX
+        // This potentially sends an incentive fee to DragonX
+        // The incentive fee is transparently forwarded to the caller
+        uint256 ethBalanceBefore = address(this).balance;
+        ITitanX(TITANX_ADDRESS).triggerPayouts();
+        uint256 triggerPayoutsIncentiveFee = address(this).balance -
+            ethBalanceBefore;
+
         // Retrieve the total claimable ETH amount.
         for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
             DragonStake dragonStake = DragonStake(
@@ -469,7 +479,10 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
 
         // Send the tip to the function caller.
         address sender = _msgSender();
-        Address.sendValue(payable(sender), incentiveFee);
+        Address.sendValue(
+            payable(sender),
+            incentiveFee + triggerPayoutsIncentiveFee
+        );
 
         // update state
         totalEthClaimed += claimedAmount;
@@ -481,7 +494,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
             buyTitanX,
             buyAndBurnDragonX,
             genesisShare,
-            incentiveFee
+            incentiveFee + triggerPayoutsIncentiveFee
         );
     }
 
@@ -713,6 +726,9 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         // Deploy a new DragonStake contract instance
         activeDragonStakeContract = Create2.deploy(0, salt, bytecode);
         dragonStakeContracts[stakeContractId] = activeDragonStakeContract;
+
+        // Allow the DragonStake instance to send ETH to DragonX
+        _receiveEthAllowlist[activeDragonStakeContract] = true;
 
         // Emit an event to track the creation of a new stake contract
         emit DragonStakeInstanceCreated(

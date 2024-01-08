@@ -235,7 +235,10 @@ describe('Genesis', () => {
       const expectedEthBalance = ethBalance - totalFee + genesisShare
 
       expect(await ethers.provider.getBalance(await dragonX.getAddress())).to.be.equal(0n)
-      expect(await ethers.provider.getBalance(genesis.address)).to.be.equal(expectedEthBalance)
+
+      // Eventually, users receive an incentive fee for calling Titanx#triggerPayouts
+      // hence greaterThanOrEqual is used for comparison
+      expect(await ethers.provider.getBalance(genesis.address)).to.be.greaterThanOrEqual(expectedEthBalance)
     })
   })
 })

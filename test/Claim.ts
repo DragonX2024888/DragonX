@@ -11,7 +11,7 @@ import * as Constants from './Constants'
 describe('Claim', () => {
   it('Should update states correctly and emit an event', async () => {
     const fixture = await loadFixture(deployDragonXUserHasMintedFixture)
-    const { user, titanBuy, dragonX, dragonBuyAndBurn } = fixture
+    const { user, titanBuy, dragonX, dragonBuyAndBurn, titanX } = fixture
     const weth = await ethers.getContractAt('ERC20', Constants.WETH_ADDRESS)
     const titanBuyAddress = await titanBuy.getAddress()
     const dragonXAddress = await dragonX.getAddress()
@@ -19,6 +19,9 @@ describe('Claim', () => {
 
     // prepare claim
     await ensureEthClaimable(fixture)
+
+    // Make sure to get up-to-date data
+    await titanX.triggerPayouts()
     const userEthBalanceBefore = await ethers.provider.getBalance(user.address)
     const totalEthClaimable = await dragonX.totalEthClaimable()
     const genesisShare = (totalEthClaimable * Constants.GENESIS_SHARE) / Constants.BASIS
@@ -55,7 +58,7 @@ describe('Claim', () => {
     const userExpectedEthBalance = userEthBalanceBefore - totalFee + incentiveFee
 
     // Ensure balanaces are correct
-    expect(await ethers.provider.getBalance(user.address)).to.be.equal(userExpectedEthBalance)
+    expect(await ethers.provider.getBalance(user.address)).to.be.greaterThanOrEqual(userExpectedEthBalance)
     expect(await weth.balanceOf(dragonXAddress)).to.be.equal(0n)
     expect(await ethers.provider.getBalance(dragonXAddress)).to.be.equal(genesisShare)
     expect(await weth.balanceOf(titanBuyAddress)).to.be.equal(titanBuyShare)
