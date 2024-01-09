@@ -38,6 +38,14 @@ interface IStakeInfo {
     function getUserStakes(
         address user
     ) external view returns (UserStake[] memory);
+
+    /** @notice get stake info with stake id
+     * @return stakeInfo stake info
+     */
+    function getUserStakeInfo(
+        address user,
+        uint256 id
+    ) external view returns (UserStakeInfo memory);
 }
 
 /**
@@ -93,4 +101,9 @@ interface ITitanX is IERC20, IStakeInfo {
      * @return currentMintCost The current cost of minting.
      */
     function getCurrentMintCost() external view returns (uint256);
+
+    /** @notice end a stake
+     * @param id stake id
+     */
+    function endStake(uint256 id) external;
 }

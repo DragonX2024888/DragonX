@@ -1,7 +1,7 @@
 module.exports = {
   skipFiles: [
     'mocks',
-    'uniswap',
+    'lib/uniswap',
   ],
   modifierWhitelist: [
     'nonReentrant'

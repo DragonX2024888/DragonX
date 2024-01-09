@@ -51,6 +51,7 @@ if (process.env.RPC_ETH) {
   console.log(`Fork local hardhat network from ${process.env.RPC_ETH}`)
   forking = {
     url: process.env.RPC_ETH!,
+    blockNumber: 18969000,
   }
 }
 

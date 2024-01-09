@@ -93,9 +93,14 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     uint256 public vault;
 
     /**
-     * @notice Tht total amount of Titan staked by DragonX
+     * @notice The total amount of Titan staked by DragonX
      */
     uint256 public totalTitanStaked;
+
+    /**
+     * @notice The total amount of Titan unstaked by DragonX
+     */
+    uint256 public totalTitanUnstaked;
 
     /**
      * @notice The total amount of ETH claimed by DragonX
@@ -120,6 +125,11 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * to DragonX limiting EOA addresses from accidently sending ETH to DragonX
      */
     mapping(address => bool) private _receiveEthAllowlist;
+
+    /**
+     * @dev Mapping of address to bool indicating if an address is a DragonStake instance
+     */
+    mapping(address => bool) private _dragonStakeAllowlist;
 
     // -----------------------------------------
     // Errors
@@ -197,9 +207,15 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     error InvalidAddress();
 
     /**
-     * @dev Error
+     * @dev Error emitted when a user attempts to mint but the initial liquidity has net yet been mined
      */
     error LiquidityNotMintedYet();
+
+    /**
+     * @dev Error emitted when a user attempts to end stakes on a DragonStake instance
+     * but there are no stakes to end
+     */
+    error NoStakesToEnd();
 
     // -----------------------------------------
     // Events
@@ -240,9 +256,28 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      */
     event TitanStakeStarted(address indexed dragonStakeAddress, uint256 amount);
 
+    /**
+     * @notice Emitted when TitanX stakes are ended by Dragonx
+     * @param dragonStakeAddress The DragonStake instance used for this action
+     * @param amount The amount unstaked
+     */
+    event TitanStakesEnded(address indexed dragonStakeAddress, uint256 amount);
+
     // -----------------------------------------
     // Modifiers
     // -----------------------------------------
+    /**
+     * @dev Modifier to restrict function access to allowed DragonStake contracts.
+     *
+     * This modifier ensures that the function can only be called by addresses that are
+     * present in the `_dragonStakeAllowlist`. If the calling address is not on the allowlist,
+     * the transaction will revert with the message "not allowed".
+     * @notice Use this modifier to restrict function access to specific addresses only.
+     */
+    modifier onlyDragonStake() {
+        require(_dragonStakeAllowlist[_msgSender()], "not allowed");
+        _;
+    }
 
     // -----------------------------------------
     // Constructor
@@ -655,6 +690,28 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @dev Updates the state when a TitanX stake has ended and the tokens are unstaked.
+     *
+     * This function should be called after unstaking TitanX tokens. It updates the vault
+     * and the total amount of TitanX tokens that have been unstaked. This function can only
+     * be called by an address that is allowed to end stakes (enforced by the `onlyDragonStake` modifier).
+     *
+     * @param amountUnstaked The amount of TitanX tokens that have been unstaked.
+     * @notice This function is callable externally but restricted to allowed addresses (DragonStake contracts).
+     * @notice It emits the `TitanStakesEnded` event after updating the total unstaked amount.
+     */
+    function stakeEnded(uint256 amountUnstaked) external onlyDragonStake {
+        // Update vault (TitanX is transfered to DragonX)
+        updateVault();
+
+        // Update state
+        totalTitanUnstaked += amountUnstaked;
+
+        // Emit event
+        emit TitanStakesEnded(_msgSender(), amountUnstaked);
+    }
+
     // -----------------------------------------
     // Public functions
     // -----------------------------------------
@@ -699,6 +756,41 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @dev Checks all DragonStake contract instances to determine if any stake has reached maturity.
+     *      Iterates through each DragonStake contract instance and checks for stakes that have reached maturity.
+     *      If a stake has reached maturity in a particular instance, it returns true along with the instance's address and the ID.
+     *      If no stakes have reached maturity in any instance, it returns false and a zero address and zero for the ID.
+     * @return hasStakesToEnd A boolean indicating if there is at least one stake that has reached maturity.
+     * @return instanceAddress The address of the DragonStake contract instance that has a stake which reached maturity.
+     * @return sId The ID of the stake which reached maturity
+     *         Returns zero address if no such instance is found.
+     * @notice This function is used to identify if and where stakes have reached maturity across multiple contract instances.
+     */
+    function stakeReachedMaturity()
+        external
+        view
+        returns (bool hasStakesToEnd, address instanceAddress, uint256 sId)
+    {
+        // Iterate over all DragonStake contract instances
+        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+            address instance = dragonStakeContracts[idx];
+
+            // Get a reference to each DragonStake contract
+            DragonStake dragonStake = DragonStake(payable(instance));
+
+            (bool reachedMaturity, uint256 id) = dragonStake
+                .stakeReachedMaturity();
+
+            // Exit if this instance contains a stake that reached maturity
+            if (reachedMaturity) {
+                return (true, instance, id);
+            }
+        }
+
+        return (false, address(0), 0);
+    }
+
     // -----------------------------------------
     // Internal functions
     // -----------------------------------------
@@ -729,6 +821,9 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
 
         // Allow the DragonStake instance to send ETH to DragonX
         _receiveEthAllowlist[activeDragonStakeContract] = true;
+
+        // For functions limited to DragonStake
+        _dragonStakeAllowlist[activeDragonStakeContract] = true;
 
         // Emit an event to track the creation of a new stake contract
         emit DragonStakeInstanceCreated(

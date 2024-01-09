@@ -7,7 +7,7 @@ import * as progress from 'cli-progress'
 
 import { DragonX, TitanBuy, DragonBuyAndBurn } from '../typechain-types/contracts'
 import { SwapHelper } from '../typechain-types/contracts/mocks'
-import { iTitanXSol } from '../typechain-types/contracts/lib'
+import { iTitanXSol } from '../typechain-types/contracts/lib/interfaces'
 
 import * as Constants from './Constants'
 
