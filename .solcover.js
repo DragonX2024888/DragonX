@@ -1,7 +1,9 @@
 module.exports = {
   skipFiles: [
     'mocks',
-    'lib/PoolAddress.sol'
+    'uniswap',
   ],
-  configureYulOptimizer: true
+  modifierWhitelist: [
+    'nonReentrant'
+  ]
 };

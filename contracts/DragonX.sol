@@ -11,9 +11,9 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Library
 import "./lib/DragonStake.sol";
-import "./lib/ITitanX.sol";
 import "./lib/Constants.sol";
 import "./lib/Types.sol";
+import "./lib/interfaces/ITitanX.sol";
 
 /**
  * @title The DragonX Contranct

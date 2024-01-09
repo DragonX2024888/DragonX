@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 // Library
-import "./ITitanX.sol";
+import "./interfaces/ITitanX.sol";
 import "./Constants.sol";
 
 import "hardhat/console.sol";

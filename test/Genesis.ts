@@ -132,6 +132,23 @@ describe('Genesis', () => {
       await expect(titanBuy.connect(genesis).setBuyAndBurnInterval(43201n))
         .to.be.revertedWith('1m-12h only')
     })
+    it('Only genesis address should be able to set TWA for TitanX price', async () => {
+      const { titanBuy, user, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(titanBuy.connect(user).setTitanPriceTwa(10n))
+        .to.be.revertedWithCustomError(titanBuy, 'OwnableUnauthorizedAccount')
+      await expect(titanBuy.connect(genesis).setTitanPriceTwa(10n))
+        .to.not.be.reverted
+    })
+    it('Should revert when trying to set TWA below 5 min for TitanX price', async () => {
+      const { titanBuy, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(titanBuy.connect(genesis).setTitanPriceTwa(4n))
+        .to.be.revertedWith('5m-1h only')
+    })
+    it('Should revert when trying to set TWA above 60 min for TitanX price', async () => {
+      const { titanBuy, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(titanBuy.connect(genesis).setTitanPriceTwa(61n))
+        .to.be.revertedWith('5m-1h only')
+    })
   })
   describe('Manage DragonBuyAndBurn Settings', () => {
     it('Only genesis address should be able to set capPerSwap on DragonBuyAndBurn', async () => {
@@ -175,6 +192,40 @@ describe('Genesis', () => {
       const { dragonBuyAndBurn, genesis } = await loadFixture(deployDragonXFixture)
       await expect(dragonBuyAndBurn.connect(genesis).setBuyAndBurnInterval(43201n))
         .to.be.revertedWith('1m-12h only')
+    })
+    it('Only genesis address should be able to set TWA for DragonX price', async () => {
+      const { dragonBuyAndBurn, user, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(dragonBuyAndBurn.connect(user).setDragonPriceTwa(10n))
+        .to.be.revertedWithCustomError(dragonBuyAndBurn, 'OwnableUnauthorizedAccount')
+      await expect(dragonBuyAndBurn.connect(genesis).setDragonPriceTwa(10n))
+        .to.not.be.reverted
+    })
+    it('Should revert when trying to set TWA below 5 min for DragonX price', async () => {
+      const { dragonBuyAndBurn, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(dragonBuyAndBurn.connect(genesis).setDragonPriceTwa(4n))
+        .to.be.revertedWith('5m-1h only')
+    })
+    it('Should revert when trying to set TWA above 60 min for DragonX price', async () => {
+      const { dragonBuyAndBurn, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(dragonBuyAndBurn.connect(genesis).setDragonPriceTwa(61n))
+        .to.be.revertedWith('5m-1h only')
+    })
+    it('Only genesis address should be able to set TWA for TitanX price', async () => {
+      const { dragonBuyAndBurn, user, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(dragonBuyAndBurn.connect(user).setDragonPriceTwa(10n))
+        .to.be.revertedWithCustomError(dragonBuyAndBurn, 'OwnableUnauthorizedAccount')
+      await expect(dragonBuyAndBurn.connect(genesis).setTitanPriceTwa(10n))
+        .to.not.be.reverted
+    })
+    it('Should revert when trying to set TWA below 5 min for TitanX price', async () => {
+      const { dragonBuyAndBurn, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(dragonBuyAndBurn.connect(genesis).setTitanPriceTwa(4n))
+        .to.be.revertedWith('5m-1h only')
+    })
+    it('Should revert when trying to set TWA above 60 min for TitanX price', async () => {
+      const { dragonBuyAndBurn, genesis } = await loadFixture(deployDragonXFixture)
+      await expect(dragonBuyAndBurn.connect(genesis).setTitanPriceTwa(61n))
+        .to.be.revertedWith('5m-1h only')
     })
   })
   describe('Claim Genesis Allocations', () => {

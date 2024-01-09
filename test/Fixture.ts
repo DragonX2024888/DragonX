@@ -25,7 +25,7 @@ interface Fixture {
 
 export async function deployDragonXFixture(): Promise<Fixture> {
   // Contracts are deployed using the first signer/account by default
-  const [genesis, user, ...others] = await ethers.getSigners()
+  const [genesis, user, firstUser, ...others] = await ethers.getSigners()
 
   // Factories
   const fDragonX = await ethers.getContractFactory('DragonX')
@@ -53,6 +53,11 @@ export async function deployDragonXFixture(): Promise<Fixture> {
 
   // Mint initial liquidity
   await dragonBuyAndBurn.connect(genesis).createInitialLiquidity(initialLiquidity)
+
+  // Swap 1 TitanX for DragonX to make sure at least one observation entry in LP pool exists
+  await swap.connect(firstUser).swapETHForTitanX({ value: ethers.parseEther('0.1') })
+  await titanX.connect(firstUser).approve(await swap.getAddress(), await titanX.balanceOf(firstUser.address))
+  await swap.connect(firstUser).swapTitanToDragon(ethers.parseEther('1'), await dragonX.getAddress())
 
   return { dragonX, titanX, titanBuy, dragonBuyAndBurn, swap, genesis, user, others, initialLiquidity }
 }

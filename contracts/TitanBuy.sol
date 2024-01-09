@@ -12,9 +12,11 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Library
-import "./lib/IWETH.sol";
 import "./lib/Constants.sol";
-import "./lib/PoolAddress.sol";
+import "./lib/interfaces/IWETH.sol";
+import "./lib/uniswap/PoolAddress.sol";
+import "./lib/uniswap/Oracle.sol";
+import "./lib/uniswap/TickMath.sol";
 
 // Other
 import "./DragonX.sol";
@@ -71,6 +73,12 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      */
     uint256 public interval;
 
+    /**
+     * @dev Specifies the value in minutes for the timed-weighted average when calculating the TitanX price (in WETH)
+     * for slippage protection.
+     */
+    uint32 private _titanPriceTwa;
+
     // -----------------------------------------
     // Errors
     // -----------------------------------------
@@ -98,6 +106,11 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      * @dev Thrown when trying to buy TitanX but there is no WETH in the contract.
      */
     error NoWethToBuyTitan();
+
+    /**
+     * @dev Thrown when trying to get Titan Price TWA data but there is none
+     */
+    error NoTitanPriceTwaData();
 
     // -----------------------------------------
     // Events
@@ -128,6 +141,7 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      *      - Sets `capPerSwap` to 1 ETH, limiting the maximum amount of WETH that can be used in each swap.
      *      - Sets `slippage` to 5%, defining the maximum allowable price movement in a swap transaction.
      *      - Sets `interval` to 60 seconds, establishing the minimum time between consecutive buy and burn operations.
+     *      - Sets `_dragonPriceTwa` to 15 minutes, establishing a protection against sandwich-attacks.
      */
     constructor() Ownable(msg.sender) {
         // Set the cap for each swap to 1 ETH
@@ -136,6 +150,8 @@ contract TitanBuy is Ownable, ReentrancyGuard {
         slippage = 5;
         // Set the minimum interval between buy and burn calls to 60 seconds
         interval = 60;
+        // Set TWA to 15 mins
+        _titanPriceTwa = 15;
     }
 
     // -----------------------------------------
@@ -345,44 +361,71 @@ contract TitanBuy is Ownable, ReentrancyGuard {
         interval = secs;
     }
 
+    /**
+     * @notice set the TWA value used when calculting the TitanX price. Only callable by owner address.
+     * @param mins TWA in minutes
+     */
+    function setTitanPriceTwa(uint32 mins) external onlyOwner {
+        require(mins >= 5 && mins <= 60, "5m-1h only");
+        _titanPriceTwa = mins;
+    }
+
     // -----------------------------------------
     // Public functions
     // -----------------------------------------
     /**
-     * Current TitanX Price in ETH
-     * @notice Retrieves the current price of one TitanX token in terms of ETH from Uniswap V3.
-     * @return price The current price of one TitanX token in ETH.
-     * @dev This function computes the price of TitanX in ETH using the Uniswap V3 pool for TitanX/WETH.
-     *      Steps to compute the price:
+     * Current TitanX Price in ETH using TWAP
+     * @notice Retrieves the current Time-Weighted Average Price (TWAP) of one TitanX token in terms of ETH from Uniswap V3.
+     * @return price The current TWAP of one TitanX token in ETH.
+     * @dev This function computes the TWAP of TitanX in ETH using the Uniswap V3 pool for TitanX/WETH and the Oracle Library.
+     *      Steps to compute the TWAP:
      *        1. Compute the pool address with the PoolAddress library using the Uniswap factory address,
      *           the addresses of WETH9 and TitanX, and the fee tier.
-     *        2. Instantiate the Uniswap V3 pool using the computed address.
-     *        3. Fetch the current sqrtPriceX96 from the pool's slot0, representing
-     *           the square root of the price of one token in terms of the other, in 96-bit fixed-point format.
-     *        4. Calculate the price by squaring sqrtPriceX96 to get the actual price ratio
-     *           and adjust to ETH's decimal format (assumed to be 18 decimals).
-     *        5. Invert the price calculation if WETH9_ADDRESS is less than TITANX_ADDRESS. This step
-     *           is necessary to ensure the price is expressed in terms of ETH for one TitanX.
-     *      Utilizes the Math.mulDiv utility for safe multiplication and division operations.
-     *      Note: The price inversion is based on token order in the Uniswap pool. If WETH is `token0`,
-     *      the price is inverted to express TitanX's price in ETH.
+     *        2. Determine the period for the TWAP calculation, limited by the oldest available observation from the Oracle.
+     *        3. If `secondsAgo` is zero, use the current price from the pool; otherwise, consult the Oracle Library
+     *           for the arithmetic mean tick for the calculated period.
+     *        4. Convert the arithmetic mean tick to the square root price (sqrtPriceX96) and calculate the price.
+     *        5. Adjust the price based on the token order in the pool to express it in terms of ETH for one TitanX.
+     *      Note: If WETH is `token0`, the price is inverted to express TitanX's price in ETH.
      */
     function getCurrentTitanPriceForEth() public view returns (uint256 price) {
         address poolAddress = PoolAddress.computeAddress(
             UNI_FACTORY,
             PoolAddress.getPoolKey(WETH9_ADDRESS, TITANX_ADDRESS, FEE_TIER)
         );
-        IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
-        (uint256 sqrtPriceX96, , , , , , ) = pool.slot0();
+        uint32 secondsAgo = _titanPriceTwa * 60;
+        uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(
+            poolAddress
+        );
+
+        // Limit to oldest observation
+        if (oldestObservation < secondsAgo) {
+            secondsAgo = oldestObservation;
+        }
+
+        uint256 sqrtPriceX96;
+        if (secondsAgo == 0) {
+            // Default to current price
+            IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
+            (sqrtPriceX96, , , , , , ) = pool.slot0();
+        } else {
+            // Consult the Oracle Library for TWAP
+            (int24 arithmeticMeanTick, ) = OracleLibrary.consult(
+                poolAddress,
+                secondsAgo
+            );
+
+            // Convert tick to sqrtPriceX96
+            sqrtPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+        }
         uint256 numerator1 = sqrtPriceX96 * sqrtPriceX96;
         uint256 numerator2 = 10 ** 18;
         price = Math.mulDiv(numerator1, numerator2, 1 << 192);
 
         // Adjust price based on whether WETH is token0 (invert)
-        // Addresses are constants, so we can hardcode the calculation
-        // price = WETH9 < TitanX ? (1 ether * 1 ether) / price : price;
-
-        price = (1 ether * 1 ether) / price;
+        price = (WETH9_ADDRESS < TITANX_ADDRESS)
+            ? (1 ether * 1 ether) / price
+            : price;
     }
 
     /**

@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Library
 import "../lib/Constants.sol";
-import "../lib/IWETH.sol";
+import "../lib/interfaces/IWETH.sol";
 
 // A simple contract to help with swaps in the test environment
 contract SwapHelper {
