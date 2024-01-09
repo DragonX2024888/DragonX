@@ -427,6 +427,9 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         if (vault >= TITANX_BPB_MAX_TITAN) {
             // Start a stake using the currently active DragonStake instance
             _startStake();
+
+            // Schedule the next possible stake after a 7-day cooldown period
+            nextStakeTs = block.timestamp + 7 days;
         } else {
             // If the vault lacks sufficient TitanX, a stake can be opened only
             // after a cooldown period of 7 days to allow for token accumulation.
