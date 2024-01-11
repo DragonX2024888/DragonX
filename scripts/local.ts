@@ -1,11 +1,15 @@
 import * as fs from 'fs'
+import { setTimeout } from 'timers/promises'
 
 import { ethers, config as hardhatConfig } from 'hardhat'
 import type {
   HardhatNetworkHDAccountsConfig,
 } from 'hardhat/types'
+import {
+  time,
+} from '@nomicfoundation/hardhat-toolbox/network-helpers'
 
-import { deployDragonXFixture } from '../test/Fixture'
+import { deployDragonXWithTitanXStakeActive, ensureEthClaimable } from '../test/Fixture'
 
 const outputFile = 'dev-environment-summary.txt'
 
@@ -24,7 +28,10 @@ function getPrivateKey(index: number): string {
 }
 
 async function deployDragonX() {
-  return await deployDragonXFixture()
+  const fixture = await deployDragonXWithTitanXStakeActive()
+  await ensureEthClaimable(fixture)
+
+  return fixture
 }
 
 async function main() {
@@ -36,6 +43,8 @@ async function main() {
   })
 
   console.log('Start deploying local dev-environment.')
+  const ts = Math.floor(Date.now() / 1000)
+  await time.increaseTo(ts)
 
   // Deploy DragoX fixture
   const {
@@ -86,6 +95,20 @@ async function main() {
   writeToSummary('===========================\n')
 
   console.log('Local dev-environment successfully deployed.')
+
+  while (true) {
+    try {
+      console.log('Trigger Payouts')
+      await titanX.triggerPayouts()
+      // await ethers.provider.send('evm_mine')
+      // If the evm_mine call is successful, wait for 5 seconds before the next iteration
+      await setTimeout(5000)
+    } catch (error) {
+      console.error('Error occurred:', error)
+      // Retry logic: wait for 5 seconds before retrying
+      // await new Promise(resolve => setTimeout(resolve, 5000))
+    }
+  }
 }
 
 main().catch((error) => {
