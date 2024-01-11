@@ -217,6 +217,11 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      */
     error NoStakesToEnd();
 
+    /**
+     * @dev Thrown when the function caller is not authorized or expected.
+     */
+    error InvalidCaller();
+
     // -----------------------------------------
     // Events
     // -----------------------------------------
@@ -468,6 +473,11 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
 
         if (TITANX_BUY == address(0)) {
             revert TitanXBuyContractNotConfigured();
+        }
+
+        //prevent contract accounts (bots) from calling this function
+        if (msg.sender != tx.origin) {
+            revert InvalidCaller();
         }
 
         // Trigger payouts on TitanX

@@ -9,6 +9,14 @@ import { deployDragonXFixture, deployDragonXUserHasMintedFixture, ensureEthClaim
 import * as Constants from './Constants'
 
 describe('Claim', () => {
+  it('Should revert if Claim is called by a bot', async () => {
+    const { dragonX } = await loadFixture(deployDragonXFixture)
+    const TriggerBot = await ethers.getContractFactory('TriggerBot')
+    const triggerBot = await TriggerBot.deploy()
+
+    await expect(triggerBot.triggerClaim(await dragonX.getAddress()))
+      .to.be.revertedWithCustomError(dragonX, 'InvalidCaller')
+  })
   it('Should update states correctly and emit an event', async () => {
     const fixture = await loadFixture(deployDragonXUserHasMintedFixture)
     const { user, titanBuy, dragonX, dragonBuyAndBurn, titanX } = fixture

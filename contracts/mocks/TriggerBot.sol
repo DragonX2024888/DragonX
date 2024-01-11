@@ -4,6 +4,7 @@ pragma solidity 0.8.20;
 // Library
 import "../TitanBuy.sol";
 import "../DragonBuyAndBurn.sol";
+import "../DragonX.sol";
 
 // A simple contract to buy TitanX within the test environment
 contract TriggerBot {
@@ -13,5 +14,9 @@ contract TriggerBot {
 
     function triggerDragonBuyAndBurn(address payable titanBuyAddress) external {
         DragonBuyAndBurn(titanBuyAddress).buyAndBurnDragonX();
+    }
+
+    function triggerClaim(address payable dragonAddress) external {
+        DragonX(dragonAddress).claim();
     }
 }
