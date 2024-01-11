@@ -30,6 +30,7 @@
     "contracts:coverage": "hardhat coverage",
     "dev:local:node": "hardhat run ./scripts/hardhat-node.ts",
     "dev:local:run": "concurrently \"hardhat run ./scripts/hardhat-node.ts\" \"cross-env wait-on http-get://127.0.0.1:8545 && hardhat run scripts/local.ts --network localnode\"",
+    "dev:local:run-init": "concurrently \"hardhat run ./scripts/hardhat-node.ts\" \"cross-env wait-on http-get://127.0.0.1:8545 && hardhat run scripts/local-init.ts --network localnode\"",
     "dev:local:set-timestamp": "hardhat set-timestamp --network localnode",
     "dev:local:get-timestamp": "hardhat get-timestamp --network localnode",
     "dev:titanx:print-error-codes": "hardhat run scripts/print-titanx-error-codes.ts"
