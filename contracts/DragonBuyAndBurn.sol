@@ -295,7 +295,7 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             DRAGONX_ADDRESS
         );
 
-        uint256 amountOutMinimum = _calculateMinimumAmountOut(amountIn);
+        uint256 amountOutMinimum = calculateMinimumDragonAmount(amountIn);
 
         // Swap parameters
         ISwapRouter.ExactInputParams memory params = ISwapRouter
@@ -519,9 +519,10 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
     // Public functions
     // -----------------------------------------
     /**
-     * Current TitanX Price in ETH using TWAP
-     * @notice Retrieves the current Time-Weighted Average Price (TWAP) of one TitanX token in terms of ETH from Uniswap V3.
-     * @return price The current TWAP of one TitanX token in ETH.
+     * Get a quote for TitanX for a given amount of ETH
+     * @notice Uses Time-Weighted Average Price (TWAP) and falls back to the pool price if TWAP is not available.
+     * @param baseAmount The amount of ETH for which the TitanX quote is needed.
+     * @return quote The amount of TitanX.
      * @dev This function computes the TWAP of TitanX in ETH using the Uniswap V3 pool for TitanX/WETH and the Oracle Library.
      *      Steps to compute the TWAP:
      *        1. Compute the pool address with the PoolAddress library using the Uniswap factory address,
@@ -529,11 +530,12 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
      *        2. Determine the period for the TWAP calculation, limited by the oldest available observation from the Oracle.
      *        3. If `secondsAgo` is zero, use the current price from the pool; otherwise, consult the Oracle Library
      *           for the arithmetic mean tick for the calculated period.
-     *        4. Convert the arithmetic mean tick to the square root price (sqrtPriceX96) and calculate the price.
-     *        5. Adjust the price based on the token order in the pool to express it in terms of ETH for one TitanX.
-     *      Note: If WETH is `token0`, the price is inverted to express TitanX's price in ETH.
+     *        4. Convert the arithmetic mean tick to the square root price (sqrtPriceX96) and calculate the price
+     *           based on the specified baseAmount of ETH.
      */
-    function getCurrentTitanPriceForEth() public view returns (uint256 price) {
+    function getTitanQuoteForEth(
+        uint256 baseAmount
+    ) public view returns (uint256 quote) {
         address poolAddress = PoolAddress.computeAddress(
             UNI_FACTORY,
             PoolAddress.getPoolKey(WETH9_ADDRESS, TITANX_ADDRESS, FEE_TIER)
@@ -548,7 +550,7 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             secondsAgo = oldestObservation;
         }
 
-        uint256 sqrtPriceX96;
+        uint160 sqrtPriceX96;
         if (secondsAgo == 0) {
             // Default to current price
             IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
@@ -563,37 +565,34 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             // Convert tick to sqrtPriceX96
             sqrtPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         }
-        uint256 numerator1 = sqrtPriceX96 * sqrtPriceX96;
-        uint256 numerator2 = 10 ** 18;
-        price = Math.mulDiv(numerator1, numerator2, 1 << 192);
 
-        // Adjust price based on whether WETH is token0 (invert)
-        price = (WETH9_ADDRESS < TITANX_ADDRESS)
-            ? (1 ether * 1 ether) / price
-            : price;
+        return
+            OracleLibrary.getQuoteForSqrtRatioX96(
+                sqrtPriceX96,
+                baseAmount,
+                WETH9_ADDRESS,
+                TITANX_ADDRESS
+            );
     }
 
     /**
-     * Current DragonX Price in TitanX using TWAP
-     * @notice Retrieves the current Time-Weighted Average Price (TWAP) of one DragonX token in terms of TitanX tokens from Uniswap V3.
-     * @return price The current TWAP of one DragonX token in TitanX.
-     * @dev This function computes the TWAP of DragonX in TitanX using the Uniswap V3 pool for DragonX/TitanX and the Oracle Library.
+     * Get a quote for DragonX for a given amount of TitanX
+     * @notice Uses Time-Weighted Average Price (TWAP) and falls back to the pool price if TWAP is not available.
+     * @param baseAmount The amount of TitanX for which the DragonX quote is needed.
+     * @return quote The amount of DragonX
+     * @dev This function computes the TWAP of TitanX in ETH using the Uniswap V3 pool for TitanX/WETH and the Oracle Library.
      *      Steps to compute the TWAP:
      *        1. Compute the pool address with the PoolAddress library using the Uniswap factory address,
-     *           the addresses of DragonX and TitanX, and the fee tier.
+     *           the addresses of WETH9 and TitanX, and the fee tier.
      *        2. Determine the period for the TWAP calculation, limited by the oldest available observation from the Oracle.
      *        3. If `secondsAgo` is zero, use the current price from the pool; otherwise, consult the Oracle Library
      *           for the arithmetic mean tick for the calculated period.
-     *        4. Convert the arithmetic mean tick to the square root price (sqrtPriceX96) and calculate the price.
-     *        5. Adjust the price based on the token order in the pool to express it in terms of TitanX for one DragonX.
-     *      Note: If DragonX is `token0`, the price is inverted to express DragonX's price in TitanX.
+     *        4. Convert the arithmetic mean tick to the square root price (sqrtPriceX96) and calculate the price
+     *           based on the specified baseAmount of ETH.
      */
-
-    function getCurrentDragonPriceForTitan()
-        public
-        view
-        returns (uint256 price)
-    {
+    function getDragonQuoteForTitan(
+        uint256 baseAmount
+    ) public view returns (uint256 quote) {
         address poolAddress = PoolAddress.computeAddress(
             UNI_FACTORY,
             PoolAddress.getPoolKey(DRAGONX_ADDRESS, TITANX_ADDRESS, FEE_TIER)
@@ -608,7 +607,7 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             secondsAgo = oldestObservation;
         }
 
-        uint256 sqrtPriceX96;
+        uint160 sqrtPriceX96;
         if (secondsAgo == 0) {
             // Default to current price
             IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
@@ -623,14 +622,14 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             // Convert tick to sqrtPriceX96
             sqrtPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         }
-        uint256 numerator1 = sqrtPriceX96 * sqrtPriceX96;
-        uint256 numerator2 = 10 ** 18;
-        price = Math.mulDiv(numerator1, numerator2, 1 << 192);
 
-        // Adjust price based on the token order in the pool
-        price = DRAGONX_ADDRESS < TITANX_ADDRESS
-            ? (1 ether * 1 ether) / price
-            : price;
+        return
+            OracleLibrary.getQuoteForSqrtRatioX96(
+                sqrtPriceX96,
+                baseAmount,
+                TITANX_ADDRESS,
+                DRAGONX_ADDRESS
+            );
     }
 
     /**
@@ -650,43 +649,36 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
         }
     }
 
-    // -----------------------------------------
-    // Internal functions
-    // -----------------------------------------
-
-    // -----------------------------------------
-    // Private functions
-    // -----------------------------------------
     /**
      * Calculate Minimum Amount Out for Multi-hop Swap
      * @notice Calculates the minimum amount of DragonX tokens expected from a multi-hop swap starting with WETH.
+     * Slippage is simplifed and applied as a constant parameter across both swaps.
      * @dev This function calculates the minimum amount of DragonX tokens that should be received when swapping a given
      *      amount of WETH for TitanX and then swapping TitanX for DragonX, considering a specified slippage.
      *      It involves the following steps:
-     *        1. Convert the WETH amount to the equivalent TitanX amount using the current WETH to TitanX price.
+     *        1. Get a quote for TitanX with the given WETH amount.
      *        2. Adjust the TitanX amount for slippage.
-     *        3. Convert the adjusted TitanX amount to the equivalent DragonX amount using the current TitanX to DragonX price.
+     *        3. Get a quote for DragonX with the adjusted TitanX amount.
      *        4. Adjust the DragonX amount for slippage to get the minimum amount out.
-     *      Assumes the slippage is a contract state variable or otherwise known.
      * @param amountIn The amount of WETH to be swapped.
      * @return amountOutMinimum The minimum amount of DragonX tokens expected from the swap.
      */
-    function _calculateMinimumAmountOut(
+    function calculateMinimumDragonAmount(
         uint256 amountIn
-    ) private view returns (uint256) {
+    ) public view returns (uint256) {
         // Ensure slippage is defined and accessible here, e.g., as a state variable
 
         // Calculate the expected amount of TITAN for the given amount of ETH
-        uint256 expectedTitanAmount = (amountIn * 1 ether) /
-            getCurrentTitanPriceForEth();
+        uint256 expectedTitanAmount = getTitanQuoteForEth(amountIn);
 
         // Adjust for slippage (applied uniformly across both hops)
         uint256 adjustedTitanAmount = (expectedTitanAmount * (100 - slippage)) /
             100;
 
         // Calculate the expected amount of DRAGON for the adjusted amount of TITAN
-        uint256 expectedDragonAmount = adjustedTitanAmount /
-            getCurrentDragonPriceForTitan();
+        uint256 expectedDragonAmount = getDragonQuoteForTitan(
+            adjustedTitanAmount
+        );
 
         // Adjust for slippage again
         uint256 amountOutMinimum = (expectedDragonAmount * (100 - slippage)) /
@@ -695,6 +687,13 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
         return amountOutMinimum;
     }
 
+    // -----------------------------------------
+    // Internal functions
+    // -----------------------------------------
+
+    // -----------------------------------------
+    // Private functions
+    // -----------------------------------------
     /**
      * @notice Sorts tokens in ascending order, as required by Uniswap for identifying a pair.
      * @dev This function arranges the token addresses in ascending order and assigns equal liquidity to both tokens.
