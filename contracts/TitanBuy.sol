@@ -140,7 +140,7 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      *      Inherits from Ownable and sets the contract deployer as the initial owner.
      *      - Sets `capPerSwap` to 1 ETH, limiting the maximum amount of WETH that can be used in each swap.
      *      - Sets `slippage` to 5%, defining the maximum allowable price movement in a swap transaction.
-     *      - Sets `interval` to 60 seconds, establishing the minimum time between consecutive buy and burn operations.
+     *      - Sets `interval` to 15 minutes, establishing the minimum time between consecutive buy and burn operations.
      *      - Sets `_dragonPriceTwa` to 15 minutes, establishing a protection against sandwich-attacks.
      */
     constructor() Ownable(msg.sender) {
@@ -148,8 +148,8 @@ contract TitanBuy is Ownable, ReentrancyGuard {
         capPerSwap = 1 ether;
         // Set the maximum slippage to 5%
         slippage = 5;
-        // Set the minimum interval between buy and burn calls to 60 seconds
-        interval = 60;
+        // Set the minimum interval between buy and burn calls to 15 minutes
+        interval = 15 * 60;
         // Set TWA to 15 mins
         _titanPriceTwa = 15;
     }
@@ -240,21 +240,8 @@ contract TitanBuy is Ownable, ReentrancyGuard {
         // Approve the router to spend WETH
         weth.safeIncreaseAllowance(address(swapRouter), amountIn);
 
-        /**
-         * @notice Calculates the minimum amount of tokens to be received in a swap transaction.
-         * @param amountIn The amount of WETH to be swapped.
-         * @param slippage Maximum slippage percentage allowed (e.g., 5 for 5%).
-         * @return amountOutMinimum The minimum amount of TitanX tokens expected from the swap.
-         * @dev The calculation accounts for slippage and converts the WETH amount to Wei.
-         *      It uses the current price of TitanX in ETH to determine the minimum amount of TitanX tokens.
-         *      Steps:
-         *      1. Convert `amountIn` of WETH to Wei.
-         *      2. Adjust for slippage, reducing the amount by `slippage` percent.
-         *      3. Divide by the price of TitanX in ETH to get the expected TitanX amount.
-         *      4. Adjust the result back down to account for the multiplication by `(100 - slippage)`.
-         */
-        uint256 amountOutMinimum = ((amountIn * 1 ether * (100 - slippage)) /
-            getCurrentTitanPriceForEth()) / 100;
+        // The minimum amount to receive
+        uint256 amountOutMinimum = calculateMinimumTitanAmount(amountIn);
 
         // Swap parameters
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
@@ -374,9 +361,10 @@ contract TitanBuy is Ownable, ReentrancyGuard {
     // Public functions
     // -----------------------------------------
     /**
-     * Current TitanX Price in ETH using TWAP
-     * @notice Retrieves the current Time-Weighted Average Price (TWAP) of one TitanX token in terms of ETH from Uniswap V3.
-     * @return price The current TWAP of one TitanX token in ETH.
+     * Get a quote for TitanX for a given amount of ETH
+     * @notice Uses Time-Weighted Average Price (TWAP) and falls back to the pool price if TWAP is not available.
+     * @param baseAmount The amount of ETH for which the TitanX quote is needed.
+     * @return quote The amount of TitanX.
      * @dev This function computes the TWAP of TitanX in ETH using the Uniswap V3 pool for TitanX/WETH and the Oracle Library.
      *      Steps to compute the TWAP:
      *        1. Compute the pool address with the PoolAddress library using the Uniswap factory address,
@@ -384,11 +372,12 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      *        2. Determine the period for the TWAP calculation, limited by the oldest available observation from the Oracle.
      *        3. If `secondsAgo` is zero, use the current price from the pool; otherwise, consult the Oracle Library
      *           for the arithmetic mean tick for the calculated period.
-     *        4. Convert the arithmetic mean tick to the square root price (sqrtPriceX96) and calculate the price.
-     *        5. Adjust the price based on the token order in the pool to express it in terms of ETH for one TitanX.
-     *      Note: If WETH is `token0`, the price is inverted to express TitanX's price in ETH.
+     *        4. Convert the arithmetic mean tick to the square root price (sqrtPriceX96) and calculate the price
+     *           based on the specified baseAmount of ETH.
      */
-    function getCurrentTitanPriceForEth() public view returns (uint256 price) {
+    function getTitanQuoteForEth(
+        uint256 baseAmount
+    ) public view returns (uint256 quote) {
         address poolAddress = PoolAddress.computeAddress(
             UNI_FACTORY,
             PoolAddress.getPoolKey(WETH9_ADDRESS, TITANX_ADDRESS, FEE_TIER)
@@ -403,7 +392,7 @@ contract TitanBuy is Ownable, ReentrancyGuard {
             secondsAgo = oldestObservation;
         }
 
-        uint256 sqrtPriceX96;
+        uint160 sqrtPriceX96;
         if (secondsAgo == 0) {
             // Default to current price
             IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
@@ -418,14 +407,38 @@ contract TitanBuy is Ownable, ReentrancyGuard {
             // Convert tick to sqrtPriceX96
             sqrtPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         }
-        uint256 numerator1 = sqrtPriceX96 * sqrtPriceX96;
-        uint256 numerator2 = 10 ** 18;
-        price = Math.mulDiv(numerator1, numerator2, 1 << 192);
 
-        // Adjust price based on whether WETH is token0 (invert)
-        price = (WETH9_ADDRESS < TITANX_ADDRESS)
-            ? (1 ether * 1 ether) / price
-            : price;
+        return
+            OracleLibrary.getQuoteForSqrtRatioX96(
+                sqrtPriceX96,
+                baseAmount,
+                WETH9_ADDRESS,
+                TITANX_ADDRESS
+            );
+    }
+
+    /**
+     * Calculate Minimum Amount Out for swapping WETH to TitanX
+     * @notice Calculates the minimum amount of TitanX tokens expected from a single-hop swap starting with WETH.
+     * @dev This function calculates the minimum amount of TitanX tokens that should be received when swapping a given
+     *      amount of WETH for TitanX, considering a specified slippage.
+     *      It involves the following steps:
+     *        1. Get a quote for TitanX with the given WETH amount.
+     *        2. Adjust the TitanX amount for slippage to get the minimum amount out.
+     * @param amountIn The amount of WETH to be swapped.
+     * @return amountOutMinimum The minimum amount of TitanX tokens expected from the swap.
+     */
+    function calculateMinimumTitanAmount(
+        uint256 amountIn
+    ) public view returns (uint256) {
+        // Calculate the expected amount of TITAN for the given amount of ETH
+        uint256 expectedTitanAmount = getTitanQuoteForEth(amountIn);
+
+        // Adjust for slippage (applied uniformly across both hops)
+        uint256 adjustedTitanAmount = (expectedTitanAmount * (100 - slippage)) /
+            100;
+
+        return adjustedTitanAmount;
     }
 
     /**

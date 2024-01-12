@@ -4,6 +4,9 @@ pragma solidity 0.8.20;
 // Uniswap
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+// OpenZeppelin
+import "@openzeppelin/contracts/utils/math/Math.sol";
+
 /**
  * @notice Adapted Uniswap V3 OracleLibrary computation to be compliant with Solidity 0.8.x and later.
  *
@@ -135,5 +138,36 @@ library OracleLibrary {
         }
 
         secondsAgo = uint32(block.timestamp) - observationTimestamp;
+    }
+
+    /// @notice Given a tick and a token amount, calculates the amount of token received in exchange
+    /// a slightly modified version of the UniSwap library getQuoteAtTick to accept a sqrtRatioX96 as input parameter
+    /// @param sqrtRatioX96 The sqrt ration
+    /// @param baseAmount Amount of token to be converted
+    /// @param baseToken Address of an ERC20 token contract used as the baseAmount denomination
+    /// @param quoteToken Address of an ERC20 token contract used as the quoteAmount denomination
+    /// @return quoteAmount Amount of quoteToken received for baseAmount of baseToken
+    function getQuoteForSqrtRatioX96(
+        uint160 sqrtRatioX96,
+        uint256 baseAmount,
+        address baseToken,
+        address quoteToken
+    ) internal pure returns (uint256 quoteAmount) {
+        // Calculate quoteAmount with better precision if it doesn't overflow when multiplied by itself
+        if (sqrtRatioX96 <= type(uint128).max) {
+            uint256 ratioX192 = uint256(sqrtRatioX96) * sqrtRatioX96;
+            quoteAmount = baseToken < quoteToken
+                ? Math.mulDiv(ratioX192, baseAmount, 1 << 192)
+                : Math.mulDiv(1 << 192, baseAmount, ratioX192);
+        } else {
+            uint256 ratioX128 = Math.mulDiv(
+                sqrtRatioX96,
+                sqrtRatioX96,
+                1 << 64
+            );
+            quoteAmount = baseToken < quoteToken
+                ? Math.mulDiv(ratioX128, baseAmount, 1 << 128)
+                : Math.mulDiv(1 << 128, baseAmount, ratioX128);
+        }
     }
 }

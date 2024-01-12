@@ -9,6 +9,7 @@ import * as progress from 'cli-progress'
 
 import { deployDragonXFixture, deployDragonXUserHasMintedFixture, ensureEthClaimable } from './Fixture'
 import * as Constants from './Constants'
+import { quoteDragonForTitan, quoteTitanForEth } from './Quote'
 
 describe('DragonBuyAndBurn', () => {
   it('Should revert if DragonX address is not set', async () => {
@@ -178,6 +179,28 @@ describe('DragonBuyAndBurn', () => {
     expect(balance).to.be.equal(await dragonBuyAndBurn.totalWethForBuyAndBurn())
     expect(balance).to.be.equal(await dragonBuyAndBurn.wethForNextBuyAndBurn())
     expect(incentiveFee).to.be.equal(await dragonBuyAndBurn.incentiveFeeForRunningBuyAndBurnDragonX())
+  })
+  it('Should calculate a proper amount for slippage protection', async () => {
+    const { dragonBuyAndBurn, dragonX } = await loadFixture(deployDragonXFixture)
+    // The initial price is set at 1:1, the initial slippage is 5%
+    // Hence, calculate an exceptable amount for 1 WETH as Input
+    const expectedTitanQuote = await quoteTitanForEth(ethers.parseEther('1'))
+    const titanQuote = await dragonBuyAndBurn.getTitanQuoteForEth(ethers.parseEther('1'))
+    expect(titanQuote).to.be.equal(expectedTitanQuote)
+    const adjustedTitanAmount = (titanQuote * 95n) / 100n
+
+    const expectedDragonQuote =
+      await quoteDragonForTitan(
+        adjustedTitanAmount,
+        await dragonBuyAndBurn.dragonTitanPoolAddress(),
+        await dragonX.getAddress(),
+      )
+
+    const dragonQuote = await dragonBuyAndBurn.getDragonQuoteForTitan(adjustedTitanAmount)
+    expect(dragonQuote).to.be.equal(expectedDragonQuote)
+    const adjustedDragonAmount = (dragonQuote * 95n) / 100n
+
+    expect(await dragonBuyAndBurn.calculateMinimumDragonAmount(ethers.parseEther('1'))).to.be.equal(adjustedDragonAmount)
   })
   it('Should update state if collecting fees from liquidity pool', async () => {
     const fixture = await loadFixture(deployDragonXUserHasMintedFixture)

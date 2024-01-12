@@ -55,12 +55,20 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     uint256 public mintPhaseEnd;
 
     /**
-     * @notice Timestamp for Mint Ratio Reduction
-     * @dev This timestamp, expressed in UTC seconds, marks the point at which the minting ratio
-     * between TitanX and DragonX changes. Prior to this timestamp, the mint ratio is 1:1. After this
-     * timestamp, the mint ratio is reduced, with 1 TitanX yielding only 0.95 DragonX.
+     * @notice mint ratios from launch for 84 days (12 weeks)
      */
-    uint256 public mintRatioReductionTs;
+    uint256 public constant mintRatioWeekOne = BASIS;
+    uint256 public constant mintRatioWeekTwo = BASIS;
+    uint256 public constant mintRatioWeekThree = 9500;
+    uint256 public constant mintRatioWeekFour = 9000;
+    uint256 public constant mintRatioWeekFive = 8500;
+    uint256 public constant mintRatioWeekSix = 8000;
+    uint256 public constant mintRatioWeekSeven = 7500;
+    uint256 public constant mintRatioWeekEight = 7000;
+    uint256 public constant mintRatioWeekNine = 6500;
+    uint256 public constant mintRatioWeekTen = 6000;
+    uint256 public constant mintRatioWeekEleven = 5500;
+    uint256 public constant mintRatioWeekTwelve = 5000;
 
     /**
      * @notice The time when it's possible to open a new TitanX stake after the cooldown.
@@ -216,6 +224,11 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * but there are no stakes to end
      */
     error NoStakesToEnd();
+
+    /**
+     * @dev Thrown when the function caller is not authorized or expected.
+     */
+    error InvalidCaller();
 
     // -----------------------------------------
     // Events
@@ -375,12 +388,47 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         // Transfer TitanX from the user to this contract
         titanX.safeTransferFrom(_msgSender(), address(this), amount);
 
-        uint256 mintAmount = amount;
-
-        // reduce mint amount after certain timestamp
-        if (block.timestamp >= mintRatioReductionTs) {
-            mintAmount = (amount * REDUCED_MINT_RATIO) / BASIS;
+        uint256 ratio;
+        if (block.timestamp < mintPhaseBegin + 7 days) {
+            // week 1
+            ratio = mintRatioWeekOne;
+        } else if (block.timestamp < mintPhaseBegin + 14 days) {
+            // week 2
+            ratio = mintRatioWeekTwo;
+        } else if (block.timestamp < mintPhaseBegin + 21 days) {
+            // week 3
+            ratio = mintRatioWeekThree;
+        } else if (block.timestamp < mintPhaseBegin + 28 days) {
+            // week 4
+            ratio = mintRatioWeekFour;
+        } else if (block.timestamp < mintPhaseBegin + 35 days) {
+            // week 5
+            ratio = mintRatioWeekFive;
+        } else if (block.timestamp < mintPhaseBegin + 42 days) {
+            // week 6
+            ratio = mintRatioWeekSix;
+        } else if (block.timestamp < mintPhaseBegin + 49 days) {
+            // week 7
+            ratio = mintRatioWeekSeven;
+        } else if (block.timestamp < mintPhaseBegin + 56 days) {
+            // week 8
+            ratio = mintRatioWeekEight;
+        } else if (block.timestamp < mintPhaseBegin + 63 days) {
+            // weeek 9
+            ratio = mintRatioWeekNine;
+        } else if (block.timestamp < mintPhaseBegin + 70 days) {
+            // week 10
+            ratio = mintRatioWeekTen;
+        } else if (block.timestamp < mintPhaseBegin + 77 days) {
+            // week 11
+            ratio = mintRatioWeekEleven;
+        } else {
+            // week 12
+            ratio = mintRatioWeekTwelve;
         }
+
+        // calculate the amount to mint
+        uint256 mintAmount = (amount * ratio) / BASIS;
 
         // Mint an equivalent amount of DragonX tokens
         _mint(_msgSender(), mintAmount);
@@ -468,6 +516,11 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
 
         if (TITANX_BUY == address(0)) {
             revert TitanXBuyContractNotConfigured();
+        }
+
+        //prevent contract accounts (bots) from calling this function
+        if (msg.sender != tx.origin) {
+            revert InvalidCaller();
         }
 
         // Trigger payouts on TitanX
@@ -582,10 +635,14 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         // Set up the minting phase timings
         uint256 currentTimestamp = block.timestamp;
         uint256 secondsUntilMidnight = 86400 - (currentTimestamp % 86400);
+
+        // The mint phase is open for 84 days (12 weeks) and begins at midnight
+        // once contracts are fully set up
         mintPhaseBegin = currentTimestamp + secondsUntilMidnight;
-        mintPhaseEnd = mintPhaseBegin + 35 days;
+        mintPhaseEnd = mintPhaseBegin + 84 days;
+
+        // Allow the first stake after 7 days of mint-phase begin
         nextStakeTs = mintPhaseBegin + 7 days;
-        mintRatioReductionTs = mintPhaseBegin + 7 days;
     }
 
     /**

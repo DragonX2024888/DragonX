@@ -8,8 +8,20 @@ import { ethers } from 'hardhat'
 
 import { deployDragonXFixture, deployDragonXUserHasMintedFixture, ensureEthClaimable } from './Fixture'
 import * as Constants from './Constants'
+import { quoteTitanForEth } from './Quote'
 
 describe('TitanBuy', () => {
+  it('Should calculate a proper amount for slippage protection', async () => {
+    const { titanBuy } = await loadFixture(deployDragonXFixture)
+    // The initial price is set at 1:1, the initial slippage is 5%
+    // Hence, calculate an exceptable amount for 1 WETH as Input
+    const expectedTitanQuote = await quoteTitanForEth(ethers.parseEther('1'))
+    const titanQuote = await titanBuy.getTitanQuoteForEth(ethers.parseEther('1'))
+    expect(titanQuote).to.be.equal(expectedTitanQuote)
+    const adjustedTitanAmount = (titanQuote * 95n) / 100n
+
+    expect(await titanBuy.calculateMinimumTitanAmount(ethers.parseEther('1'))).to.be.equal(adjustedTitanAmount)
+  })
   it('Should revert if DragonX address is not set', async () => {
     const TitanBuy = await ethers.getContractFactory('TitanBuy')
     const titanBuy = await TitanBuy.deploy()
