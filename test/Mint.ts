@@ -95,7 +95,7 @@ describe('Mint', () => {
     expect(await dragonX.totalSupply()).to.be.equal(expectedDragonXtotalSupply)
     expect(await dragonX.vault()).to.be.equal(dragonXexpectedTitanXvault)
   })
-  it('Should mint the correct amount of DragonX token after reducing to a 1:0.95 ratio', async () => {
+  it('Should allow to mint for 12 weeks with reducing the ratio by 5% after week 2', async () => {
     const { swap, dragonX, titanX, user, genesis } = await loadFixture(deployDragonXFixture)
 
     // Users swaps ETH for TitanX on UniSwap
@@ -105,47 +105,94 @@ describe('Mint', () => {
     expect(balanceBefore).to.be.greaterThan(0n)
     expect(await dragonX.balanceOf(user.address)).to.be.equal(0n)
 
-    // Market Buy exactly one DragonX using TitanX
-    const firstMint = (balanceBefore * 5000n) / Constants.BASIS
-    const secondMint = (balanceBefore * 5000n) / Constants.BASIS
-    const dragonAfterFirstMint = firstMint // 1:1
-    const dragonAfterSecondMint = (secondMint * 9500n) / Constants.BASIS // 1:0.95
-    const totalDragonMinted = dragonAfterFirstMint + dragonAfterSecondMint
+    // Allow DragonX to spend TitanX
+    await titanX.connect(user).approve(await dragonX.getAddress(), balanceBefore)
 
-    // Genesis receives 8% of total supply TitanX send to DragonX
-    const genesisShareFirstMint = (firstMint * 800n) / Constants.BASIS
-    const genesisShareSecondtMint = (secondMint * 800n) / Constants.BASIS
+    // Activate
+    const mintPhaseBegin = await dragonX.mintPhaseBegin()
+    await time.increaseTo(mintPhaseBegin)
 
-    // Genesis receives 8% of total DragonX minted
-    const dragonGenesisShareFirstMint = (dragonAfterFirstMint * 800n) / Constants.BASIS
-    const dragonGenesisShareSecondMint = (dragonAfterSecondMint * 800n) / Constants.BASIS
+    // Mint in week one
+    const expectedDragonBalanceWeekOne = 0n + ethers.parseEther('1')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekOne)
 
-    const totalDragonGenesisShare = dragonGenesisShareFirstMint + dragonGenesisShareSecondMint
-    const totalTitanGenesisShare = genesisShareFirstMint + genesisShareSecondtMint
-    const totalTitanInVault = firstMint + secondMint - totalTitanGenesisShare
+    // Mint in week two
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekTwo = expectedDragonBalanceWeekOne + ethers.parseEther('1')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekTwo)
 
-    // Users mints first time
-    await time.increaseTo(
-      await dragonX.mintPhaseBegin(),
-    )
-    await titanX.connect(user).approve(await dragonX.getAddress(), firstMint)
-    await expect(dragonX.connect(user).mint(firstMint))
-      .to.not.be.reverted
+    // Mint in week three
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekThree = expectedDragonBalanceWeekTwo + ethers.parseEther('0.95')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekThree)
 
-    // Check balances
-    expect(await dragonX.balanceOf(user.address)).to.be.equal(dragonAfterFirstMint)
+    // Mint in week four
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekFour = expectedDragonBalanceWeekThree + ethers.parseEther('0.9')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekFour)
 
-    // Users mints second time
-    await time.increaseTo(
-      await dragonX.mintRatioReductionTs(),
-    )
-    await titanX.connect(user).approve(await dragonX.getAddress(), secondMint)
-    await expect(dragonX.connect(user).mint(secondMint))
-      .to.not.be.reverted
+    // Mint in week five
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekFive = expectedDragonBalanceWeekFour + ethers.parseEther('0.85')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekFive)
 
+    // Mint in week six
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekSix = expectedDragonBalanceWeekFive + ethers.parseEther('0.8')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekSix)
+
+    // Mint in week seven
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekSeven = expectedDragonBalanceWeekSix + ethers.parseEther('0.75')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekSeven)
+
+    // Mint in week eight
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekEight = expectedDragonBalanceWeekSeven + ethers.parseEther('0.7')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekEight)
+
+    // Mint in week nine
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekNine = expectedDragonBalanceWeekEight + ethers.parseEther('0.65')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekNine)
+
+    // Mint in week ten
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekTen = expectedDragonBalanceWeekNine + ethers.parseEther('0.6')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekTen)
+
+    // Mint in week eleven
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekEleven = expectedDragonBalanceWeekTen + ethers.parseEther('0.55')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekEleven)
+
+    // Mint in week twelve
+    await time.increase(Constants.SECONDS_PER_WEEK)
+    const expectedDragonBalanceWeekTwelve = expectedDragonBalanceWeekEleven + ethers.parseEther('0.5')
+    await expect(dragonX.connect(user).mint(ethers.parseEther('1'))).to.not.be.reverted
+    expect(await dragonX.balanceOf(user.address)).to.be.equal(expectedDragonBalanceWeekTwelve)
+
+    const totalDragonMinted = expectedDragonBalanceWeekTwelve
+
+    const totalTitanUsed = ethers.parseEther('12')
+    const totalTitanGenesisShare = (totalTitanUsed * 800n) / Constants.BASIS
+    const totalDragonGenesisShare = (totalDragonMinted * 800n) / Constants.BASIS
+
+    // Ensure DragonX state
     // Check balances
     expect(await dragonX.balanceOf(user.address)).to.be.equal(totalDragonMinted)
-    expect(await dragonX.vault()).to.be.equal(totalTitanInVault)
+    expect(await dragonX.vault()).to.be.equal(totalTitanUsed - totalTitanGenesisShare)
 
     // Ensure genesis vault has correct amoun
     expect(await titanX.balanceOf(genesis.address)).to.be.equal(0n)

@@ -140,7 +140,7 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      *      Inherits from Ownable and sets the contract deployer as the initial owner.
      *      - Sets `capPerSwap` to 1 ETH, limiting the maximum amount of WETH that can be used in each swap.
      *      - Sets `slippage` to 5%, defining the maximum allowable price movement in a swap transaction.
-     *      - Sets `interval` to 60 seconds, establishing the minimum time between consecutive buy and burn operations.
+     *      - Sets `interval` to 15 minutes, establishing the minimum time between consecutive buy and burn operations.
      *      - Sets `_dragonPriceTwa` to 15 minutes, establishing a protection against sandwich-attacks.
      */
     constructor() Ownable(msg.sender) {
@@ -148,8 +148,8 @@ contract TitanBuy is Ownable, ReentrancyGuard {
         capPerSwap = 1 ether;
         // Set the maximum slippage to 5%
         slippage = 5;
-        // Set the minimum interval between buy and burn calls to 60 seconds
-        interval = 60;
+        // Set the minimum interval between buy and burn calls to 15 minutes
+        interval = 15 * 60;
         // Set TWA to 15 mins
         _titanPriceTwa = 15;
     }
