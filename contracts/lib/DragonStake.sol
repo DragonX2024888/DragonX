@@ -33,6 +33,10 @@ contract DragonStake is Ownable {
     // -----------------------------------------
     // Errors
     // -----------------------------------------
+    /**
+     * @dev Error emitted when a user tries to end a stake but is not mature yet.
+     */
+    error StakeNotMature();
 
     // -----------------------------------------
     // Events
@@ -156,7 +160,7 @@ contract DragonStake is Ownable {
             // Update DragonX
             DragonX(payable(owner())).stakeEnded(unstaked);
         } else {
-            revert("not mature");
+            revert StakeNotMature();
         }
     }
 

@@ -60,7 +60,7 @@ describe('DragonStake', () => {
     const dragonStake = await ethers.getContractAt('DragonStake', await dragonX.activeDragonStakeContract())
 
     // Calling function on DragonStake should revert
-    await expect(dragonStake.endStakeAfterMaturity(1n)).to.be.revertedWith('not mature')
+    await expect(dragonStake.endStakeAfterMaturity(1n)).to.be.revertedWithCustomError(dragonStake, 'StakeNotMature')
   })
   it('Should revert if calling with ID zero', async () => {
     const { dragonX } = await loadFixture(deployDragonXWithTitanXStakeActive)
