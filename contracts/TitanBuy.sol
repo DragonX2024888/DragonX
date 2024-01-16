@@ -88,11 +88,6 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
     error InvalidDragonAddress();
 
     /**
-     * @dev Thrown when the transfer of TitanX tokens fails.
-     */
-    error TitanTransferFailed();
-
-    /**
      * @dev Thrown when the function caller is not authorized or expected.
      */
     error InvalidCaller();
@@ -106,11 +101,6 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
      * @dev Thrown when trying to buy TitanX but there is no WETH in the contract.
      */
     error NoWethToBuyTitan();
-
-    /**
-     * @dev Thrown when trying to get Titan Price TWA data but there is none
-     */
-    error NoTitanPriceTwaData();
 
     // -----------------------------------------
     // Events

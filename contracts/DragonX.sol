@@ -220,12 +220,6 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
     error LiquidityNotMintedYet();
 
     /**
-     * @dev Error emitted when a user attempts to end stakes on a DragonStake instance
-     * but there are no stakes to end
-     */
-    error NoStakesToEnd();
-
-    /**
      * @dev Thrown when the function caller is not authorized or expected.
      */
     error InvalidCaller();
