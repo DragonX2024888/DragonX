@@ -530,7 +530,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
             ethBalanceBefore;
 
         // Retrieve the total claimable ETH amount.
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
             DragonStake dragonStake = DragonStake(
                 payable(dragonStakeContracts[idx])
             );
@@ -668,7 +668,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      */
     function totalStakesOpened() external view returns (uint256 totalStakes) {
         // Iterate over all DragonStake contract instances
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
             // Get a reference to each DragonStake contract
             DragonStake dragonStake = DragonStake(
                 payable(dragonStakeContracts[idx])
@@ -803,7 +803,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      */
     function totalEthClaimable() public view returns (uint256 claimable) {
         // Iterate over all DragonStake contract instances
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
             // Get a reference to each DragonStake contract
             DragonStake dragonStake = DragonStake(
                 payable(dragonStakeContracts[idx])
@@ -831,7 +831,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         returns (bool hasStakesToEnd, address instanceAddress, uint256 sId)
     {
         // Iterate over all DragonStake contract instances
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
             address instance = dragonStakeContracts[idx];
 
             // Get a reference to each DragonStake contract
