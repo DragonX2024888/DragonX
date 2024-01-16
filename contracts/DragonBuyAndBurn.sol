@@ -22,7 +22,6 @@ import "./lib/uniswap/TickMath.sol";
 // Other
 import "./DragonX.sol";
 
-
 contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IWETH9;
@@ -123,29 +122,6 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     uint32 private _dragonPriceTwa;
 
     // -----------------------------------------
-    // Errors
-    // -----------------------------------------
-    /**
-     * @dev Thrown when the provided address is address(0)
-     */
-    error InvalidDragonAddress();
-
-    /**
-     * @dev Thrown when the function caller is not authorized or expected.
-     */
-    error InvalidCaller();
-
-    /**
-     * @dev Thrown when trying to buy and burn DragonX but the cooldown period is still active.
-     */
-    error CooldownPeriodActive();
-
-    /**
-     * @dev Thrown when trying to buy and burn DragonX but there is no WETH in the contract.
-     */
-    error NoWethToBuyAndBurnDragon();
-
-    // -----------------------------------------
     // Events
     // -----------------------------------------
     /**
@@ -173,6 +149,29 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
         uint256 indexed titan,
         address indexed caller
     );
+
+    // -----------------------------------------
+    // Errors
+    // -----------------------------------------
+    /**
+     * @dev Thrown when the provided address is address(0)
+     */
+    error InvalidDragonAddress();
+
+    /**
+     * @dev Thrown when the function caller is not authorized or expected.
+     */
+    error InvalidCaller();
+
+    /**
+     * @dev Thrown when trying to buy and burn DragonX but the cooldown period is still active.
+     */
+    error CooldownPeriodActive();
+
+    /**
+     * @dev Thrown when trying to buy and burn DragonX but there is no WETH in the contract.
+     */
+    error NoWethToBuyAndBurnDragon();
 
     // -----------------------------------------
     // Modifiers

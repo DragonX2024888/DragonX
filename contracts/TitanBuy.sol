@@ -80,6 +80,21 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
     uint32 private _titanPriceTwa;
 
     // -----------------------------------------
+    // Events
+    // -----------------------------------------
+    /**
+     * @notice Emitted when Titan tokens are purchased.
+     * @param weth The amount of WETH used for the purchase.
+     * @param titan The amount of Titan tokens bought.
+     * @param caller The address of the caller who initiated the transaction.
+     */
+    event TitanBought(
+        uint256 indexed weth,
+        uint256 indexed titan,
+        address indexed caller
+    );
+
+    // -----------------------------------------
     // Errors
     // -----------------------------------------
     /**
@@ -101,21 +116,6 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
      * @dev Thrown when trying to buy TitanX but there is no WETH in the contract.
      */
     error NoWethToBuyTitan();
-
-    // -----------------------------------------
-    // Events
-    // -----------------------------------------
-    /**
-     * @notice Emitted when Titan tokens are purchased.
-     * @param weth The amount of WETH used for the purchase.
-     * @param titan The amount of Titan tokens bought.
-     * @param caller The address of the caller who initiated the transaction.
-     */
-    event TitanBought(
-        uint256 indexed weth,
-        uint256 indexed titan,
-        address indexed caller
-    );
 
     // -----------------------------------------
     // Modifiers

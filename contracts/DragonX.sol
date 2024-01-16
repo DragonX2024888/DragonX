@@ -140,6 +140,52 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
     mapping(address => bool) private _dragonStakeAllowlist;
 
     // -----------------------------------------
+    // Events
+    // -----------------------------------------
+    /**
+     * @dev Event emitted when a new Dragon stake instance is created.
+     * @param stakeContractId Unique identifier of the stake contract.
+     * @param stakeContractAddress Address of the newly created stake contract.
+     */
+    event DragonStakeInstanceCreated(
+        uint256 stakeContractId,
+        address stakeContractAddress
+    );
+
+    /**
+     * @notice Emitted when staking rewards are claimed.
+     * @param caller The address of the caller who initiated the transaction.
+     * @param totalClaimed The total amount of ETH claimed.
+     * @param titanBuy Amount transfered to TitanBuy.
+     * @param dragonBuyAndBurn Amount transfered to DragonBuyAndBurn
+     * @param genesis Amount accounted to genesis
+     * @param incentiveFee Incentive see send to caller
+     * (this might include the incentice for calling triggerPayouts on TitanX)
+     */
+    event Claimed(
+        address indexed caller,
+        uint256 indexed totalClaimed,
+        uint256 titanBuy,
+        uint256 dragonBuyAndBurn,
+        uint256 genesis,
+        uint256 incentiveFee
+    );
+
+    /**
+     * @notice Emitted when a new TitanX stake is opened by Dragonx
+     * @param dragonStakeAddress The DragonStake instance used for this stake
+     * @param amount The amount staked
+     */
+    event TitanStakeStarted(address indexed dragonStakeAddress, uint256 amount);
+
+    /**
+     * @notice Emitted when TitanX stakes are ended by Dragonx
+     * @param dragonStakeAddress The DragonStake instance used for this action
+     * @param amount The amount unstaked
+     */
+    event TitanStakesEnded(address indexed dragonStakeAddress, uint256 amount);
+
+    // -----------------------------------------
     // Errors
     // -----------------------------------------
     /**
@@ -223,52 +269,6 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      * @dev Thrown when the function caller is not authorized or expected.
      */
     error InvalidCaller();
-
-    // -----------------------------------------
-    // Events
-    // -----------------------------------------
-    /**
-     * @dev Event emitted when a new Dragon stake instance is created.
-     * @param stakeContractId Unique identifier of the stake contract.
-     * @param stakeContractAddress Address of the newly created stake contract.
-     */
-    event DragonStakeInstanceCreated(
-        uint256 stakeContractId,
-        address stakeContractAddress
-    );
-
-    /**
-     * @notice Emitted when staking rewards are claimed.
-     * @param caller The address of the caller who initiated the transaction.
-     * @param totalClaimed The total amount of ETH claimed.
-     * @param titanBuy Amount transfered to TitanBuy.
-     * @param dragonBuyAndBurn Amount transfered to DragonBuyAndBurn
-     * @param genesis Amount accounted to genesis
-     * @param incentiveFee Incentive see send to caller
-     * (this might include the incentice for calling triggerPayouts on TitanX)
-     */
-    event Claimed(
-        address indexed caller,
-        uint256 indexed totalClaimed,
-        uint256 titanBuy,
-        uint256 dragonBuyAndBurn,
-        uint256 genesis,
-        uint256 incentiveFee
-    );
-
-    /**
-     * @notice Emitted when a new TitanX stake is opened by Dragonx
-     * @param dragonStakeAddress The DragonStake instance used for this stake
-     * @param amount The amount staked
-     */
-    event TitanStakeStarted(address indexed dragonStakeAddress, uint256 amount);
-
-    /**
-     * @notice Emitted when TitanX stakes are ended by Dragonx
-     * @param dragonStakeAddress The DragonStake instance used for this action
-     * @param amount The amount unstaked
-     */
-    event TitanStakesEnded(address indexed dragonStakeAddress, uint256 amount);
 
     // -----------------------------------------
     // Modifiers
@@ -704,6 +704,41 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
     }
 
     /**
+     * @dev Checks all DragonStake contract instances to determine if any stake has reached maturity.
+     *      Iterates through each DragonStake contract instance and checks for stakes that have reached maturity.
+     *      If a stake has reached maturity in a particular instance, it returns true along with the instance's address and the ID.
+     *      If no stakes have reached maturity in any instance, it returns false and a zero address and zero for the ID.
+     * @return hasStakesToEnd A boolean indicating if there is at least one stake that has reached maturity.
+     * @return instanceAddress The address of the DragonStake contract instance that has a stake which reached maturity.
+     * @return sId The ID of the stake which reached maturity
+     *         Returns zero address if no such instance is found.
+     * @notice This function is used to identify if and where stakes have reached maturity across multiple contract instances.
+     */
+    function stakeReachedMaturity()
+        external
+        view
+        returns (bool hasStakesToEnd, address instanceAddress, uint256 sId)
+    {
+        // Iterate over all DragonStake contract instances
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
+            address instance = dragonStakeContracts[idx];
+
+            // Get a reference to each DragonStake contract
+            DragonStake dragonStake = DragonStake(payable(instance));
+
+            (bool reachedMaturity, uint256 id) = dragonStake
+                .stakeReachedMaturity();
+
+            // Exit if this instance contains a stake that reached maturity
+            if (reachedMaturity) {
+                return (true, instance, id);
+            }
+        }
+
+        return (false, address(0), 0);
+    }
+
+    /**
      * @dev Sets the address used for buying and burning DRAGONX tokens.
      * @notice This function can only be called by the contract owner.
      * @param dragonBuyAndBurn The address to be set for the DRAGONX buy and burn operation.
@@ -821,41 +856,6 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
             // Add the claimable ETH from each DragonStake to the total
             claimable += dragonStake.totalEthClaimable();
         }
-    }
-
-    /**
-     * @dev Checks all DragonStake contract instances to determine if any stake has reached maturity.
-     *      Iterates through each DragonStake contract instance and checks for stakes that have reached maturity.
-     *      If a stake has reached maturity in a particular instance, it returns true along with the instance's address and the ID.
-     *      If no stakes have reached maturity in any instance, it returns false and a zero address and zero for the ID.
-     * @return hasStakesToEnd A boolean indicating if there is at least one stake that has reached maturity.
-     * @return instanceAddress The address of the DragonStake contract instance that has a stake which reached maturity.
-     * @return sId The ID of the stake which reached maturity
-     *         Returns zero address if no such instance is found.
-     * @notice This function is used to identify if and where stakes have reached maturity across multiple contract instances.
-     */
-    function stakeReachedMaturity()
-        external
-        view
-        returns (bool hasStakesToEnd, address instanceAddress, uint256 sId)
-    {
-        // Iterate over all DragonStake contract instances
-        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
-            address instance = dragonStakeContracts[idx];
-
-            // Get a reference to each DragonStake contract
-            DragonStake dragonStake = DragonStake(payable(instance));
-
-            (bool reachedMaturity, uint256 id) = dragonStake
-                .stakeReachedMaturity();
-
-            // Exit if this instance contains a stake that reached maturity
-            if (reachedMaturity) {
-                return (true, instance, id);
-            }
-        }
-
-        return (false, address(0), 0);
     }
 
     // -----------------------------------------
