@@ -6,7 +6,7 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 // OpenZeppelins
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -24,7 +24,7 @@ import "./DragonX.sol";
 
 import "hardhat/console.sol";
 
-contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
+contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IWETH9;
     using SafeERC20 for DragonX;

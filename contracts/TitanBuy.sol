@@ -6,7 +6,7 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 // OpenZeppelins
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -21,7 +21,7 @@ import "./lib/uniswap/TickMath.sol";
 // Other
 import "./DragonX.sol";
 
-contract TitanBuy is Ownable, ReentrancyGuard {
+contract TitanBuy is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IWETH9;
 

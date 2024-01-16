@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Library
@@ -19,7 +19,7 @@ import "./lib/interfaces/ITitanX.sol";
  * @title The DragonX Contranct
  * @author The DragonX devs
  */
-contract DragonX is ERC20, Ownable, ReentrancyGuard {
+contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for ITitanX;
 
