@@ -231,18 +231,6 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
     error NoEthClaimable();
 
     /**
-     * @dev Error emitted when the DragonX Buy and Burn contract is not configured.
-     * This is required for certain operations involving the DragonX Buy and Burn mechanism.
-     */
-    error DragonXBuyAndBurnContractNotConfigured();
-
-    /**
-     * @dev Error emitted when the TitanX Buy contract is not configured.
-     * Indicates a configuration issue for operations involving the TitanX Buy contract.
-     */
-    error TitanXBuyContractNotConfigured();
-
-    /**
      * @dev Error emitted when there are no tokens available to stake.
      * This ensures that the staking operation is only executed when there are tokens to be staked.
      */
