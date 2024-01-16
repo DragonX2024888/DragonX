@@ -343,7 +343,7 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
      *      Uses the `nonReentrant` modifier to prevent reentrancy attacks.
      * @custom:modifier nonReentrant Ensures the function cannot be re-entered while it is being executed.
      */
-    function collectFees() public nonReentrant {
+    function collectFees() external nonReentrant {
         // Cache state variables
         address dragonAddress_ = DRAGONX_ADDRESS;
         address titanAddress_ = TITANX_ADDRESS;
