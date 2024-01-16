@@ -35,7 +35,7 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
     /**
      * @dev The address of the DragonX Contract.
      */
-    address public DRAGONX_ADDRESS;
+    address public dragonAddress;
 
     /**
      * @dev Maximum slippage percentage acceptable when buying TitanX with WETH.
@@ -195,7 +195,7 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
      */
     function buyTitanX() external nonReentrant returns (uint256 amountOut) {
         // Cache state variables
-        address dragonAddress_ = DRAGONX_ADDRESS;
+        address dragonAddress_ = dragonAddress;
 
         // Ensure DragonX address has been set
         if (dragonAddress_ == address(0)) {
@@ -305,14 +305,14 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
      * @notice Sets the address of the DragonX contract
      * @dev This function allows the contract owner to update the address of the contract contract.
      * It includes a check to prevent setting the address to the zero address.
-     * @param dragonX The new address to be set for the contract.
+     * @param dragonAddress_ The new address to be set for the contract.
      * @custom:revert InvalidAddress If the provided address is the zero address.
      */
-    function setDragonContractAddress(address dragonX) external onlyOwner {
-        if (dragonX == address(0)) {
+    function setDragonContractAddress(address dragonAddress_) external onlyOwner {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
-        DRAGONX_ADDRESS = dragonX;
+        dragonAddress = dragonAddress_;
     }
 
     /**

@@ -34,13 +34,13 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      * @notice The TitanX buy contract address.
      * Set at runtime, this address allows for upgrading the buy contract version.
      */
-    address public TITANX_BUY;
+    address public titanBuyAddress;
 
     /**
      * @notice The DragonX buy and burn contract address.
      * Set at runtime, this allows for upgrading the DragonX buy and burn contract.
      */
-    address public DRAGONX_BUY_AND_BURN;
+    address public dragonBuyAndBurnAddress;
 
     /**
      * @notice The start time of the mint phase, expressed in UTC seconds.
@@ -298,17 +298,17 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      *      - Deploys the first DragonStake contract instance.
      *      - Transfers ownership to contract deployer.
      *      - Set the initial TitanBuy and DragonBuyAndBurn contract addresses.
-     * @param titanBuy The address of the TitanBuy contract instance.
-     * @param dragonBuyAndBurn The address of the DragonBuyAndBurn contract instance.
+     * @param titanBuyAddress_ The address of the TitanBuy contract instance.
+     * @param dragonBuyAndBurnAdddress_ The address of the DragonBuyAndBurn contract instance.
      */
     constructor(
-        address titanBuy,
-        address dragonBuyAndBurn
+        address titanBuyAddress_,
+        address dragonBuyAndBurnAdddress_
     ) ERC20("DragonX", "DRAGONX") Ownable(msg.sender) {
-        if (titanBuy == address(0)) {
+        if (titanBuyAddress_ == address(0)) {
             revert InvalidAddress();
         }
-        if (dragonBuyAndBurn == address(0)) {
+        if (dragonBuyAndBurnAdddress_ == address(0)) {
             revert InvalidAddress();
         }
 
@@ -316,8 +316,8 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         _deployDragonStakeInstance();
 
         // Set contract addresses
-        TITANX_BUY = titanBuy;
-        DRAGONX_BUY_AND_BURN = dragonBuyAndBurn;
+        titanBuyAddress = titanBuyAddress_;
+        dragonBuyAndBurnAddress = dragonBuyAndBurnAdddress_;
 
         // set other states
         initalLiquidityMinted = InitialLiquidityMinted.No;
@@ -562,10 +562,10 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         _genesisVault[address(0)] += genesisShare;
 
         // Send to the Buy and Burn contract for DragonX.
-        Address.sendValue(payable(DRAGONX_BUY_AND_BURN), buyAndBurnDragonX);
+        Address.sendValue(payable(dragonBuyAndBurnAddress), buyAndBurnDragonX);
 
         // Send to the buy contract for TitanX.
-        Address.sendValue(payable(TITANX_BUY), buyTitanX);
+        Address.sendValue(payable(titanBuyAddress), buyTitanX);
 
         // Send the tip to the function caller.
         address sender = _msgSender();
@@ -617,7 +617,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      */
     function mintInitialLiquidity(uint256 amount) external {
         // Cache state variables
-        address dragonBuyAndBurnAddress_ = DRAGONX_BUY_AND_BURN;
+        address dragonBuyAndBurnAddress_ = dragonBuyAndBurnAddress;
 
         // Verify that the caller is authorized to mint initial liquidity
         require(msg.sender == dragonBuyAndBurnAddress_, "not authorized");
@@ -751,7 +751,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         if (dragonBuyAndBurn == address(0)) {
             revert InvalidAddress();
         }
-        DRAGONX_BUY_AND_BURN = dragonBuyAndBurn;
+        dragonBuyAndBurnAddress = dragonBuyAndBurn;
     }
 
     /**
@@ -765,7 +765,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         if (titanBuy == address(0)) {
             revert InvalidAddress();
         }
-        TITANX_BUY = titanBuy;
+        titanBuyAddress = titanBuy;
     }
 
     /**
