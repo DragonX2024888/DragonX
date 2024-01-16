@@ -362,6 +362,9 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      * @param amount The amount of DragonX tokens to be minted.
      */
     function mint(uint256 amount) external {
+        // Cache state variables
+        uint256 mintPhaseBegin_ = mintPhaseBegin;
+
         // To avoid being frontrun, minting creating DragonX tokens will only
         // be able once the inital liqudiity ahs been created
         if (initalLiquidityMinted != InitialLiquidityMinted.Yes) {
@@ -369,7 +372,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         }
 
         // Check if the minting phase is currently active
-        if (block.timestamp < mintPhaseBegin) {
+        if (block.timestamp < mintPhaseBegin_) {
             revert MintingNotYetActive();
         }
 
@@ -390,37 +393,37 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         titanX.safeTransferFrom(_msgSender(), address(this), amount);
 
         uint256 ratio;
-        if (block.timestamp < mintPhaseBegin + 7 days) {
+        if (block.timestamp < mintPhaseBegin_ + 7 days) {
             // week 1
             ratio = mintRatioWeekOne;
-        } else if (block.timestamp < mintPhaseBegin + 14 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 14 days) {
             // week 2
             ratio = mintRatioWeekTwo;
-        } else if (block.timestamp < mintPhaseBegin + 21 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 21 days) {
             // week 3
             ratio = mintRatioWeekThree;
-        } else if (block.timestamp < mintPhaseBegin + 28 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 28 days) {
             // week 4
             ratio = mintRatioWeekFour;
-        } else if (block.timestamp < mintPhaseBegin + 35 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 35 days) {
             // week 5
             ratio = mintRatioWeekFive;
-        } else if (block.timestamp < mintPhaseBegin + 42 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 42 days) {
             // week 6
             ratio = mintRatioWeekSix;
-        } else if (block.timestamp < mintPhaseBegin + 49 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 49 days) {
             // week 7
             ratio = mintRatioWeekSeven;
-        } else if (block.timestamp < mintPhaseBegin + 56 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 56 days) {
             // week 8
             ratio = mintRatioWeekEight;
-        } else if (block.timestamp < mintPhaseBegin + 63 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 63 days) {
             // weeek 9
             ratio = mintRatioWeekNine;
-        } else if (block.timestamp < mintPhaseBegin + 70 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 70 days) {
             // week 10
             ratio = mintRatioWeekTen;
-        } else if (block.timestamp < mintPhaseBegin + 77 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 77 days) {
             // week 11
             ratio = mintRatioWeekEleven;
         } else {
@@ -469,11 +472,15 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         }
 
         updateVault();
-        if (vault == 0) {
+
+        // Cache state variables
+        uint256 vault_ = vault;
+
+        if (vault_ == 0) {
             revert NoTokensToStake();
         }
 
-        if (vault >= TITANX_BPB_MAX_TITAN) {
+        if (vault_ >= TITANX_BPB_MAX_TITAN) {
             // Start a stake using the currently active DragonStake instance
             _startStake();
 
@@ -609,8 +616,11 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      * @param amount The amount of DragonX tokens to be minted for initial liquidity.
      */
     function mintInitialLiquidity(uint256 amount) external {
+        // Cache state variables
+        address dragonBuyAndBurnAddress_ = DRAGONX_BUY_AND_BURN;
+
         // Verify that the caller is authorized to mint initial liquidity
-        require(msg.sender == DRAGONX_BUY_AND_BURN, "not authorized");
+        require(msg.sender == dragonBuyAndBurnAddress_, "not authorized");
 
         // Ensure that initial liquidity hasn't been minted before
         require(
@@ -619,7 +629,7 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         );
 
         // Mint the specified amount of DragonX tokens to the authorized address
-        _mint(DRAGONX_BUY_AND_BURN, amount);
+        _mint(dragonBuyAndBurnAddress_, amount);
 
         // Update the state to reflect that initial liquidity has been minted
         initalLiquidityMinted = InitialLiquidityMinted.Yes;
@@ -630,11 +640,16 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
 
         // The mint phase is open for 84 days (12 weeks) and begins at midnight
         // once contracts are fully set up
-        mintPhaseBegin = currentTimestamp + secondsUntilMidnight;
-        mintPhaseEnd = mintPhaseBegin + 84 days;
+        uint256 mintPhaseBegin_ = currentTimestamp + secondsUntilMidnight;
+
+        // Update storage
+        mintPhaseBegin = mintPhaseBegin_;
+
+        // Set mint phase end
+        mintPhaseEnd = mintPhaseBegin_ + 84 days;
 
         // Allow the first stake after 7 days of mint-phase begin
-        nextStakeTs = mintPhaseBegin + 7 days;
+        nextStakeTs = mintPhaseBegin_ + 7 days;
     }
 
     /**
@@ -868,19 +883,24 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         );
 
         // Deploy a new DragonStake contract instance
-        activeDragonStakeContract = Create2.deploy(0, salt, bytecode);
-        dragonStakeContracts[stakeContractId] = activeDragonStakeContract;
+        address newDragonStakeContract = Create2.deploy(0, salt, bytecode);
+
+        // Set new contract as active
+        activeDragonStakeContract = newDragonStakeContract;
+
+        // Update storage
+        dragonStakeContracts[stakeContractId] = newDragonStakeContract;
 
         // Allow the DragonStake instance to send ETH to DragonX
-        _receiveEthAllowlist[activeDragonStakeContract] = true;
+        _receiveEthAllowlist[newDragonStakeContract] = true;
 
         // For functions limited to DragonStake
-        _dragonStakeAllowlist[activeDragonStakeContract] = true;
+        _dragonStakeAllowlist[newDragonStakeContract] = true;
 
         // Emit an event to track the creation of a new stake contract
         emit DragonStakeInstanceCreated(
             stakeContractId,
-            activeDragonStakeContract
+            newDragonStakeContract
         );
 
         // Increment the counter for DragonStake contracts
@@ -894,16 +914,19 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      *      This function is meant to be called internally by other contract functions.
      */
     function _startStake() private {
+        // Cache state variables
+        address activeDragonStakeContract_ = activeDragonStakeContract;
+
         // Initialize TitanX contract reference
         ITitanX titanX = ITitanX(TITANX_ADDRESS);
         DragonStake dragonStake = DragonStake(
-            payable(activeDragonStakeContract)
+            payable(activeDragonStakeContract_)
         );
         uint256 amountToStake = vault;
         vault = 0;
 
         // Transfer TitanX tokens to the active DragonStake contract
-        titanX.safeTransfer(activeDragonStakeContract, amountToStake);
+        titanX.safeTransfer(activeDragonStakeContract_, amountToStake);
 
         // Open a new stake with the total amount transferred
         dragonStake.stake();
@@ -912,6 +935,6 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
         totalTitanStaked += amountToStake;
 
         // Emit event
-        emit TitanStakeStarted(activeDragonStakeContract, amountToStake);
+        emit TitanStakeStarted(activeDragonStakeContract_, amountToStake);
     }
 }

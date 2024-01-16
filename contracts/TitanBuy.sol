@@ -194,8 +194,11 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
      * @custom:revert NoWethToBuyTitan If there is no WETH available to buy TitanX after deducting the incentive fee.
      */
     function buyTitanX() external nonReentrant returns (uint256 amountOut) {
+        // Cache state variables
+        address dragonAddress_ = DRAGONX_ADDRESS;
+
         // Ensure DragonX address has been set
-        if (DRAGONX_ADDRESS == address(0)) {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
         //prevent contract accounts (bots) from calling this function
@@ -250,10 +253,10 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
         amountOut = swapRouter.exactInputSingle(params);
 
         // Transfer the bought TitanX to DragonX
-        IERC20(TITANX_ADDRESS).safeTransfer(DRAGONX_ADDRESS, amountOut);
+        IERC20(TITANX_ADDRESS).safeTransfer(dragonAddress_, amountOut);
 
         // Update DragonX vault
-        DragonX(payable(DRAGONX_ADDRESS)).updateVault();
+        DragonX(payable(dragonAddress_)).updateVault();
 
         // Update state
         totalWethUsedForBuys += amountIn;
@@ -441,10 +444,13 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
      * If the balance exceeds `capPerSwap`, `forBuy` is set to `capPerSwap`.
      */
     function wethForNextBuy() public view returns (uint256 forBuy) {
+        // Cache state variables
+        uint256 capPerSwap_ = capPerSwap;
+
         IERC20 weth = IERC20(WETH9_ADDRESS);
         forBuy = weth.balanceOf(address(this));
-        if (forBuy > capPerSwap) {
-            forBuy = capPerSwap;
+        if (forBuy > capPerSwap_) {
+            forBuy = capPerSwap_;
         }
     }
 

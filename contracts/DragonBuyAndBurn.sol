@@ -250,8 +250,11 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
         nonReentrant
         returns (uint256 amountOut)
     {
+        // Cache state variables
+        address dragonAddress_ = DRAGONX_ADDRESS;
+
         // Ensure DragonX address has been set
-        if (DRAGONX_ADDRESS == address(0)) {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
         //prevent contract accounts (bots) from calling this function
@@ -292,7 +295,7 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
             FEE_TIER,
             TITANX_ADDRESS,
             FEE_TIER,
-            DRAGONX_ADDRESS
+            dragonAddress_
         );
 
         uint256 amountOutMinimum = calculateMinimumDragonAmount(amountIn);
@@ -311,7 +314,7 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
         amountOut = swapRouter.exactInput(params);
 
         // Burn the DragonX bought
-        DragonX(payable(DRAGONX_ADDRESS)).burn();
+        DragonX(payable(dragonAddress_)).burn();
 
         // Update state
         totalWethUsedForBuyAndBurns += amountIn;
@@ -341,13 +344,17 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
      * @custom:modifier nonReentrant Ensures the function cannot be re-entered while it is being executed.
      */
     function collectFees() public nonReentrant {
+        // Cache state variables
+        address dragonAddress_ = DRAGONX_ADDRESS;
+        address titanAddress_ = TITANX_ADDRESS;
+
         address sender = _msgSender();
         (uint256 amount0, uint256 amount1) = _collectFees();
 
         uint256 dragon;
         uint256 titan;
 
-        if (DRAGONX_ADDRESS < TITANX_ADDRESS) {
+        if (dragonAddress_ < titanAddress_) {
             dragon = amount0;
             titan = amount1;
         } else {
@@ -359,10 +366,10 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
         totalTitanFeeCollected += titan;
         totalDragonBurned += dragon;
 
-        DragonX dragonX = DragonX(payable(DRAGONX_ADDRESS));
+        DragonX dragonX = DragonX(payable(dragonAddress_));
         dragonX.burn();
 
-        IERC20(TITANX_ADDRESS).safeTransfer(DRAGONX_ADDRESS, titan);
+        IERC20(titanAddress_).safeTransfer(dragonAddress_, titan);
         dragonX.updateVault();
 
         emit CollectedFees(dragon, titan, sender);
@@ -377,13 +384,16 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     function createInitialLiquidity(
         uint256 initialLiquidityAmount
     ) external onlyOwner {
+        // Cache state variables
+        address dragonAddress_ = DRAGONX_ADDRESS;
+
         // Verify that the DragonX token address is set
-        if (DRAGONX_ADDRESS == address(0)) {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
 
         // Initialize DragonX and TitanX token interfaces
-        DragonX dragonX = DragonX(payable(DRAGONX_ADDRESS));
+        DragonX dragonX = DragonX(payable(dragonAddress_));
         IERC20 titanX = IERC20(TITANX_ADDRESS);
 
         // Mint the initial DragonX liquidity.
@@ -593,9 +603,13 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     function getDragonQuoteForTitan(
         uint256 baseAmount
     ) public view returns (uint256 quote) {
+        // Cache state variables
+        address titanAddress_ = TITANX_ADDRESS;
+        address dragonAddress_ = DRAGONX_ADDRESS;
+
         address poolAddress = PoolAddress.computeAddress(
             UNI_FACTORY,
-            PoolAddress.getPoolKey(DRAGONX_ADDRESS, TITANX_ADDRESS, FEE_TIER)
+            PoolAddress.getPoolKey(dragonAddress_, titanAddress_, FEE_TIER)
         );
         uint32 secondsAgo = _dragonPriceTwa * 60;
         uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(
@@ -627,8 +641,8 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
             OracleLibrary.getQuoteForSqrtRatioX96(
                 sqrtPriceX96,
                 baseAmount,
-                TITANX_ADDRESS,
-                DRAGONX_ADDRESS
+                titanAddress_,
+                dragonAddress_
             );
     }
 
@@ -642,10 +656,13 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
      * If the balance exceeds `capPerSwap`, `forBuy` is set to `capPerSwap`.
      */
     function wethForNextBuyAndBurn() public view returns (uint256 forBuy) {
+        // Cache state variables
+        uint256 capPerSwap_ = capPerSwap;
+
         IERC20 weth = IERC20(WETH9_ADDRESS);
         forBuy = weth.balanceOf(address(this));
-        if (forBuy > capPerSwap) {
-            forBuy = capPerSwap;
+        if (forBuy > capPerSwap_) {
+            forBuy = capPerSwap_;
         }
     }
 
@@ -666,14 +683,15 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     function calculateMinimumDragonAmount(
         uint256 amountIn
     ) public view returns (uint256) {
-        // Ensure slippage is defined and accessible here, e.g., as a state variable
+        // Cache state variable
+        uint256 slippage_ = slippage;
 
         // Calculate the expected amount of TITAN for the given amount of ETH
         uint256 expectedTitanAmount = getTitanQuoteForEth(amountIn);
 
         // Adjust for slippage (applied uniformly across both hops)
-        uint256 adjustedTitanAmount = (expectedTitanAmount * (100 - slippage)) /
-            100;
+        uint256 adjustedTitanAmount = (expectedTitanAmount *
+            (100 - slippage_)) / 100;
 
         // Calculate the expected amount of DRAGON for the adjusted amount of TITAN
         uint256 expectedDragonAmount = getDragonQuoteForTitan(
@@ -681,7 +699,7 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
         );
 
         // Adjust for slippage again
-        uint256 amountOutMinimum = (expectedDragonAmount * (100 - slippage)) /
+        uint256 amountOutMinimum = (expectedDragonAmount * (100 - slippage_)) /
             100;
 
         return amountOutMinimum;
@@ -715,13 +733,17 @@ contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
             uint256 amount1
         )
     {
-        token0 = TITANX_ADDRESS;
-        token1 = DRAGONX_ADDRESS;
+        // Cache state variables
+        address dragonAddress_ = DRAGONX_ADDRESS;
+        address titanAddress_ = TITANX_ADDRESS;
+
+        token0 = titanAddress_;
+        token1 = dragonAddress_;
         amount0 = initialLiquidityAmount;
         amount1 = initialLiquidityAmount;
-        if (DRAGONX_ADDRESS < TITANX_ADDRESS) {
-            token0 = DRAGONX_ADDRESS;
-            token1 = TITANX_ADDRESS;
+        if (dragonAddress_ < titanAddress_) {
+            token0 = dragonAddress_;
+            token1 = titanAddress_;
         }
     }
 
