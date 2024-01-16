@@ -22,7 +22,6 @@ import "./lib/uniswap/TickMath.sol";
 // Other
 import "./DragonX.sol";
 
-import "hardhat/console.sol";
 
 contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
