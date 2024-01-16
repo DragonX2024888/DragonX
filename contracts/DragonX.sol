@@ -311,6 +311,13 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         address titanBuy,
         address dragonBuyAndBurn
     ) ERC20("DragonX", "DRAGONX") Ownable(msg.sender) {
+        if (titanBuy == address(0)) {
+            revert InvalidAddress();
+        }
+        if (dragonBuyAndBurn == address(0)) {
+            revert InvalidAddress();
+        }
+
         // Deploy stake contract instance setting DragonX as its owner
         _deployDragonStakeInstance();
 
@@ -509,15 +516,6 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      *      6. Sends the tip to the caller of the function.
      */
     function claim() external nonReentrant returns (uint256 claimedAmount) {
-        // Ensure valid configuration before proceeding
-        if (DRAGONX_BUY_AND_BURN == address(0)) {
-            revert DragonXBuyAndBurnContractNotConfigured();
-        }
-
-        if (TITANX_BUY == address(0)) {
-            revert TitanXBuyContractNotConfigured();
-        }
-
         //prevent contract accounts (bots) from calling this function
         if (msg.sender != tx.origin) {
             revert InvalidCaller();

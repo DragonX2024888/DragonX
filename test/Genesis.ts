@@ -8,6 +8,22 @@ import { deployDragonXFixture, deployDragonXUserHasMintedFixture, ensureEthClaim
 import * as Constants from './Constants'
 
 describe('Genesis', () => {
+  describe('Invalid constructor params', () => {
+    it('Should revert if DragonBuyAndBurn adress is zero', async () => {
+      const fDragonX = await ethers.getContractFactory('DragonX')
+      const fTitanBuy = await ethers.getContractFactory('TitanBuy')
+      const titanBuy = await fTitanBuy.deploy()
+
+      await expect(fDragonX.deploy(await titanBuy.getAddress(), Constants.ADDRESS_ZERO)).to.be.revertedWithCustomError(fDragonX, 'InvalidAddress')
+    })
+    it('Should revert if TitanBuy adress is zero', async () => {
+      const fDragonX = await ethers.getContractFactory('DragonX')
+      const fDragonBuyAndBurn = await ethers.getContractFactory('DragonBuyAndBurn')
+      const dragonBuyAndBurn = await fDragonBuyAndBurn.deploy()
+
+      await expect(fDragonX.deploy(Constants.ADDRESS_ZERO, await dragonBuyAndBurn.getAddress())).to.be.revertedWithCustomError(fDragonX, 'InvalidAddress')
+    })
+  })
   describe('Ownable', () => {
     it('Genesis address should be owner of DragonX', async () => {
       const { dragonX, genesis } = await loadFixture(deployDragonXFixture)
