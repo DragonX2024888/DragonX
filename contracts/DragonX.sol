@@ -148,8 +148,8 @@ contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
      * @param stakeContractAddress Address of the newly created stake contract.
      */
     event DragonStakeInstanceCreated(
-        uint256 stakeContractId,
-        address stakeContractAddress
+        uint256 indexed stakeContractId,
+        address indexed stakeContractAddress
     );
 
     /**
