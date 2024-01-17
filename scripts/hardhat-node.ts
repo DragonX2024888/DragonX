@@ -1,7 +1,7 @@
 import { spawn } from 'child_process'
 
 console.log('Spawn a hardhat node.')
-const hardhat = spawn('hardhat', ['node', '--port', '8545'], {
+const hardhat = spawn('hardhat', ['node', '--port', '8545', '--hostname', '0.0.0.0'], {
   stdio: ['inherit', 'inherit', 'inherit'], // Redirect stdout and stderr to the parent's stdout/stderr
   shell: process.platform === 'win32',
 })

@@ -63,6 +63,18 @@ async function main() {
     gasLimit: '1000000',
   })
 
+  // user funds mobile
+  await titanX.connect(user).transfer('0xe5bc0e0e27646A31d9D18F001df1bf187d96730F', await titanX.balanceOf(user.address))
+  await user.sendTransaction({
+    to: '0xe5bc0e0e27646A31d9D18F001df1bf187d96730F',
+    value: ethers.parseEther('1'),
+  })
+
+  await swap.connect(user).swapETHForTitanX({
+    value: ethers.parseEther('1'),
+    gasLimit: '1000000',
+  })
+
   // Output formatting begins here:
   writeToSummary('===========================')
   writeToSummary('   DEPLOYMENT SUMMARY')
