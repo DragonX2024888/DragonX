@@ -20,6 +20,8 @@ First, clone the repository and navigate to the project directory. Then, run the
 yarn install
 ```
 
+> make sure to use `yarn` version 4.x
+
 ### Compile Contracts
 Compile the smart contracts with the following command:
 
