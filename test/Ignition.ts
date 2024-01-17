@@ -13,6 +13,7 @@ describe('Ignition', () => {
     const [genesis] = await ethers.getSigners()
     await swap.connect(genesis).swapETHForTitanX({ value: ethers.parseEther('28') })
     const initialLiquidity = await titanX.balanceOf(genesis.address)
+    expect(initialLiquidity).to.be.greaterThan(0n)
 
     // Deploy with ignition
     const { dragonX, titanBuy, dragonBuyAndBurn } = await ignition.deploy(DragonX)
@@ -21,5 +22,6 @@ describe('Ignition', () => {
     expect(await dragonBuyAndBurn.dragonAddress()).to.be.equal(await dragonX.getAddress())
     expect(await dragonX.initalLiquidityMinted()).to.be.equal(1n)
     expect(await dragonX.totalSupply()).to.be.equal(initialLiquidity)
+    expect(await titanX.balanceOf(genesis.address)).to.be.equal(0n)
   })
 })

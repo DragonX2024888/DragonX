@@ -134,12 +134,12 @@ contract TitanBuy is Ownable2Step, ReentrancyGuard {
      *      - Sets `_dragonPriceTwa` to 15 minutes, establishing a protection against sandwich-attacks.
      */
     constructor() Ownable(msg.sender) {
-        // Set the cap for each swap to 1 ETH
-        capPerSwap = 1 ether;
+        // Set the cap to approx 1 ETH per day (called every hour)
+        capPerSwap = 0.045 ether;
         // Set the maximum slippage to 5%
         slippage = 5;
-        // Set the minimum interval between buy and burn calls to 15 minutes
-        interval = 15 * 60;
+        // Set the minimum interval between buy and burn calls to 1 hour
+        interval = 60 * 60;
         // Set TWA to 15 mins
         _titanPriceTwa = 15;
     }

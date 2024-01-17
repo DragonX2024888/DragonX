@@ -105,15 +105,16 @@ describe('TitanBuy', () => {
     // Prepare
     const vaultBefore = await dragonX.vault()
     let balanceBefore = await weth.balanceOf(await titanBuy.getAddress())
+    let amountIn = balanceBefore
+    if (amountIn > await titanBuy.capPerSwap()) {
+      amountIn = await titanBuy.capPerSwap()
+    }
     const titanBalanceBefore = await titanX.balanceOf(await dragonX.getAddress())
-    let incentiveFee = (balanceBefore * Constants.INCENTIVE_FEE) / Constants.BASIS
+    let incentiveFee = (amountIn * Constants.INCENTIVE_FEE) / Constants.BASIS
     expect(await titanBuy.totalWethUsedForBuys()).to.be.equal(0n)
     expect(await titanBuy.totalTitanBought()).to.be.equal(0n)
     const userEthBalanceBefore = await ethers.provider.getBalance(user.address)
-    let expectedWethForBuy = balanceBefore - incentiveFee
-    if (balanceBefore > await titanBuy.capPerSwap()) {
-      expectedWethForBuy = balanceBefore - await titanBuy.capPerSwap() - incentiveFee
-    }
+    const expectedWethForBuy = amountIn - incentiveFee
 
     // Buy TitanX
     let tx = await titanBuy.connect(user).buyTitanX()
@@ -151,11 +152,12 @@ describe('TitanBuy', () => {
 
     // prepare
     balanceBefore = await weth.balanceOf(await titanBuy.getAddress())
-    incentiveFee = (balanceBefore * Constants.INCENTIVE_FEE) / Constants.BASIS
-    let expectedWethForBuy2 = balanceBefore - incentiveFee
-    if (balanceBefore > await titanBuy.capPerSwap()) {
-      expectedWethForBuy2 = balanceBefore - await titanBuy.capPerSwap() - incentiveFee
+    amountIn = balanceBefore
+    if (amountIn > await titanBuy.capPerSwap()) {
+      amountIn = await titanBuy.capPerSwap()
     }
+    incentiveFee = (amountIn * Constants.INCENTIVE_FEE) / Constants.BASIS
+    const expectedWethForBuy2 = amountIn - incentiveFee
 
     const nextInterval = await titanBuy.lastCallTs() + await titanBuy.interval()
     if (await time.latest() < nextInterval) {
@@ -175,12 +177,13 @@ describe('TitanBuy', () => {
   })
   it('Should have a function to get the total WETH for Buy TitanX (below cap)', async () => {
     const fixture = await loadFixture(deployDragonXUserHasMintedFixture)
-    const { titanBuy, dragonX } = fixture
+    const { titanBuy, dragonX, genesis } = fixture
     const weth = await ethers.getContractAt('ERC20', Constants.WETH_ADDRESS)
     await ensureEthClaimable(fixture)
 
     await dragonX.claim()
     const balance = await weth.balanceOf(await titanBuy.getAddress())
+    await titanBuy.connect(genesis).setCapPerSwap(balance + 1n)
     const cap = await titanBuy.capPerSwap()
     expect(balance).to.be.lessThan(cap)
 

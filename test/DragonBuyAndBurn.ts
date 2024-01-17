@@ -96,15 +96,17 @@ describe('DragonBuyAndBurn', () => {
 
     // Prepare
     let balanceBefore = await weth.balanceOf(await dragonBuyAndBurn.getAddress())
+    let amountIn = balanceBefore
+    if (amountIn > await dragonBuyAndBurn.capPerSwap()) {
+      amountIn = await dragonBuyAndBurn.capPerSwap()
+    }
+
     const dragonTotalSupplyBefore = await dragonX.totalSupply()
-    let incentiveFee = (balanceBefore * Constants.INCENTIVE_FEE) / Constants.BASIS
+    let incentiveFee = (amountIn * Constants.INCENTIVE_FEE) / Constants.BASIS
     expect(await dragonBuyAndBurn.totalWethUsedForBuyAndBurns()).to.be.equal(0n)
     expect(await dragonBuyAndBurn.totalDragonBurned()).to.be.equal(0n)
     const userEthBalanceBefore = await ethers.provider.getBalance(user.address)
-    let expectedWethForBuyAndBurn = balanceBefore - incentiveFee
-    if (balanceBefore > await dragonBuyAndBurn.capPerSwap()) {
-      expectedWethForBuyAndBurn = balanceBefore - await dragonBuyAndBurn.capPerSwap() - incentiveFee
-    }
+    const expectedWethForBuyAndBurn = amountIn - incentiveFee
 
     // Buy and burn DragonX
     let tx = await dragonBuyAndBurn.connect(user).buyAndBurnDragonX()
@@ -142,11 +144,12 @@ describe('DragonBuyAndBurn', () => {
 
     // prepare
     balanceBefore = await weth.balanceOf(await dragonBuyAndBurn.getAddress())
-    incentiveFee = (balanceBefore * Constants.INCENTIVE_FEE) / Constants.BASIS
-    let expectedWethForBuyAndBurn2 = balanceBefore - incentiveFee
-    if (balanceBefore > await dragonBuyAndBurn.capPerSwap()) {
-      expectedWethForBuyAndBurn2 = balanceBefore - await dragonBuyAndBurn.capPerSwap() - incentiveFee
+    amountIn = balanceBefore
+    if (amountIn > await dragonBuyAndBurn.capPerSwap()) {
+      amountIn = await dragonBuyAndBurn.capPerSwap()
     }
+    incentiveFee = (amountIn * Constants.INCENTIVE_FEE) / Constants.BASIS
+    const expectedWethForBuyAndBurn2 = amountIn - incentiveFee
 
     const nextInterval = await dragonBuyAndBurn.lastCallTs() + await dragonBuyAndBurn.interval()
     if (await time.latest() < nextInterval) {
@@ -166,12 +169,13 @@ describe('DragonBuyAndBurn', () => {
   })
   it('Should have a function to get the total WETH for Buy And Burn DragonX (below cap)', async () => {
     const fixture = await loadFixture(deployDragonXUserHasMintedFixture)
-    const { dragonBuyAndBurn, dragonX } = fixture
+    const { dragonBuyAndBurn, dragonX, genesis } = fixture
     const weth = await ethers.getContractAt('ERC20', Constants.WETH_ADDRESS)
     await ensureEthClaimable(fixture)
 
     await dragonX.claim()
     const balance = await weth.balanceOf(await dragonBuyAndBurn.getAddress())
+    await dragonBuyAndBurn.connect(genesis).setCapPerSwap(balance + 1n)
     const cap = await dragonBuyAndBurn.capPerSwap()
     expect(balance).to.be.lessThan(cap)
 
