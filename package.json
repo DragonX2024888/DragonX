@@ -25,7 +25,8 @@
   },
   "scripts": {
     "contracts:deploy-local": "hardhat ignition deploy ignition/modules/DragonX.ts --network frame_local",
-    "contracts:deploy": "hardhat ignition deploy ignition/modules/Apollo.ts --network frame_mainnet",
+    "contracts:deploy": "hardhat ignition deploy ignition/modules/DragonX.ts --network frame_mainnet",
+    "contracts:initial-liquidity": "hardhat run ./scripts/create-initial-liquidity.ts --network frame_mainnet",
     "contracts:verify": "hardhat ignition verify chain-1",
     "contracts:cloc": "cloc contracts --exclude-dir mocks",
     "contracts:compile": "hardhat compile",
