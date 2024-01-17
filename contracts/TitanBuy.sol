@@ -6,7 +6,7 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 // OpenZeppelins
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -21,7 +21,7 @@ import "./lib/uniswap/TickMath.sol";
 // Other
 import "./DragonX.sol";
 
-contract TitanBuy is Ownable, ReentrancyGuard {
+contract TitanBuy is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IWETH9;
 
@@ -35,7 +35,7 @@ contract TitanBuy is Ownable, ReentrancyGuard {
     /**
      * @dev The address of the DragonX Contract.
      */
-    address public DRAGONX_ADDRESS;
+    address public dragonAddress;
 
     /**
      * @dev Maximum slippage percentage acceptable when buying TitanX with WETH.
@@ -80,17 +80,27 @@ contract TitanBuy is Ownable, ReentrancyGuard {
     uint32 private _titanPriceTwa;
 
     // -----------------------------------------
+    // Events
+    // -----------------------------------------
+    /**
+     * @notice Emitted when Titan tokens are purchased.
+     * @param weth The amount of WETH used for the purchase.
+     * @param titan The amount of Titan tokens bought.
+     * @param caller The address of the caller who initiated the transaction.
+     */
+    event TitanBought(
+        uint256 indexed weth,
+        uint256 indexed titan,
+        address indexed caller
+    );
+
+    // -----------------------------------------
     // Errors
     // -----------------------------------------
     /**
      * @dev Thrown when the provided address is address(0)
      */
     error InvalidDragonAddress();
-
-    /**
-     * @dev Thrown when the transfer of TitanX tokens fails.
-     */
-    error TitanTransferFailed();
 
     /**
      * @dev Thrown when the function caller is not authorized or expected.
@@ -106,26 +116,6 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      * @dev Thrown when trying to buy TitanX but there is no WETH in the contract.
      */
     error NoWethToBuyTitan();
-
-    /**
-     * @dev Thrown when trying to get Titan Price TWA data but there is none
-     */
-    error NoTitanPriceTwaData();
-
-    // -----------------------------------------
-    // Events
-    // -----------------------------------------
-    /**
-     * @notice Emitted when Titan tokens are purchased.
-     * @param weth The amount of WETH used for the purchase.
-     * @param titan The amount of Titan tokens bought.
-     * @param caller The address of the caller who initiated the transaction.
-     */
-    event TitanBought(
-        uint256 indexed weth,
-        uint256 indexed titan,
-        address indexed caller
-    );
 
     // -----------------------------------------
     // Modifiers
@@ -204,8 +194,11 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      * @custom:revert NoWethToBuyTitan If there is no WETH available to buy TitanX after deducting the incentive fee.
      */
     function buyTitanX() external nonReentrant returns (uint256 amountOut) {
+        // Cache state variables
+        address dragonAddress_ = dragonAddress;
+
         // Ensure DragonX address has been set
-        if (DRAGONX_ADDRESS == address(0)) {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
         //prevent contract accounts (bots) from calling this function
@@ -260,10 +253,10 @@ contract TitanBuy is Ownable, ReentrancyGuard {
         amountOut = swapRouter.exactInputSingle(params);
 
         // Transfer the bought TitanX to DragonX
-        IERC20(TITANX_ADDRESS).safeTransfer(DRAGONX_ADDRESS, amountOut);
+        IERC20(TITANX_ADDRESS).safeTransfer(dragonAddress_, amountOut);
 
         // Update DragonX vault
-        DragonX(payable(DRAGONX_ADDRESS)).updateVault();
+        DragonX(payable(dragonAddress_)).updateVault();
 
         // Update state
         totalWethUsedForBuys += amountIn;
@@ -312,14 +305,14 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      * @notice Sets the address of the DragonX contract
      * @dev This function allows the contract owner to update the address of the contract contract.
      * It includes a check to prevent setting the address to the zero address.
-     * @param dragonX The new address to be set for the contract.
+     * @param dragonAddress_ The new address to be set for the contract.
      * @custom:revert InvalidAddress If the provided address is the zero address.
      */
-    function setDragonContractAddress(address dragonX) external onlyOwner {
-        if (dragonX == address(0)) {
+    function setDragonContractAddress(address dragonAddress_) external onlyOwner {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
-        DRAGONX_ADDRESS = dragonX;
+        dragonAddress = dragonAddress_;
     }
 
     /**
@@ -451,10 +444,13 @@ contract TitanBuy is Ownable, ReentrancyGuard {
      * If the balance exceeds `capPerSwap`, `forBuy` is set to `capPerSwap`.
      */
     function wethForNextBuy() public view returns (uint256 forBuy) {
+        // Cache state variables
+        uint256 capPerSwap_ = capPerSwap;
+
         IERC20 weth = IERC20(WETH9_ADDRESS);
         forBuy = weth.balanceOf(address(this));
-        if (forBuy > capPerSwap) {
-            forBuy = capPerSwap;
+        if (forBuy > capPerSwap_) {
+            forBuy = capPerSwap_;
         }
     }
 

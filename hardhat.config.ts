@@ -3,6 +3,7 @@ import { HardhatUserConfig, task } from 'hardhat/config'
 import { time } from '@nomicfoundation/hardhat-toolbox/network-helpers'
 import '@nomicfoundation/hardhat-toolbox'
 import 'hardhat-contract-sizer'
+import '@nomicfoundation/hardhat-ignition-ethers'
 
 // Custom Tasks
 task('set-timestamp', 'Set the blockchain timestamp')
@@ -94,6 +95,14 @@ const config: HardhatUserConfig = {
     localnode: {
       url: 'http://127.0.0.1:8545',
       chainId: 31337,
+    },
+    frame_local: {
+      url: 'http://127.0.0.1:1248',
+      chainId: 31337,
+    },
+    frame_mainnet: {
+      url: 'http://127.0.0.1:1248',
+      chainId: 1,
     },
     hardhat: {
       allowBlocksWithSameTimestamp: true,

@@ -95,18 +95,6 @@ describe('Claim', () => {
 
     expect(incentiveFee).to.be.equal(await dragonX.incentiveFeeForClaim())
   })
-  it('Should revert if either DragonBuyAndBurn or TitanBuy is not set', async () => {
-    const { genesis, dragonBuyAndBurn } = await loadFixture(deployDragonXFixture)
-    const fDragonX = await ethers.getContractFactory('DragonX')
-    const dragonX = await fDragonX.deploy(Constants.ADDRESS_ZERO, Constants.ADDRESS_ZERO)
-
-    await expect(dragonX.claim()).to.be.revertedWithCustomError(dragonX, 'DragonXBuyAndBurnContractNotConfigured')
-
-    // now set an address for Buy And Burn
-    await dragonX.connect(genesis).setDragonBuyAndBurnAddress(await dragonBuyAndBurn.getAddress())
-
-    await expect(dragonX.claim()).to.be.revertedWithCustomError(dragonX, 'TitanXBuyContractNotConfigured')
-  })
   it('Should revert if no ETH is claimable', async () => {
     const { dragonX } = await loadFixture(deployDragonXUserHasMintedFixture)
     await expect(dragonX.claim()).to.be.revertedWithCustomError(dragonX, 'NoEthClaimable')

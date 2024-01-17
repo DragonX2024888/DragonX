@@ -33,6 +33,10 @@ contract DragonStake is Ownable {
     // -----------------------------------------
     // Errors
     // -----------------------------------------
+    /**
+     * @dev Error emitted when a user tries to end a stake but is not mature yet.
+     */
+    error StakeNotMature();
 
     // -----------------------------------------
     // Events
@@ -156,7 +160,7 @@ contract DragonStake is Ownable {
             // Update DragonX
             DragonX(payable(owner())).stakeEnded(unstaked);
         } else {
-            revert("not mature");
+            revert StakeNotMature();
         }
     }
 
@@ -208,7 +212,7 @@ contract DragonStake is Ownable {
         ITitanX titanX = ITitanX(TITANX_ADDRESS);
         UserStake[] memory stakes = titanX.getUserStakes(address(this));
 
-        for (uint256 idx = 0; idx < stakes.length; idx++) {
+        for (uint256 idx; idx < stakes.length; idx++) {
             if (block.timestamp > stakes[idx].stakeInfo.maturityTs) {
                 return (true, stakes[idx].sId);
             }

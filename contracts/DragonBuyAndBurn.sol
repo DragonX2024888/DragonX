@@ -6,7 +6,7 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 // OpenZeppelins
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -22,9 +22,7 @@ import "./lib/uniswap/TickMath.sol";
 // Other
 import "./DragonX.sol";
 
-import "hardhat/console.sol";
-
-contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
+contract DragonBuyAndBurn is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for IWETH9;
     using SafeERC20 for DragonX;
@@ -49,7 +47,7 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
     /**
      * @dev The address of the DragonX Contract.
      */
-    address public DRAGONX_ADDRESS;
+    address public dragonAddress;
 
     /**
      * @dev Maximum slippage percentage acceptable when buying TitanX with WETH and DragonX with TitanX.
@@ -124,29 +122,6 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
     uint32 private _dragonPriceTwa;
 
     // -----------------------------------------
-    // Errors
-    // -----------------------------------------
-    /**
-     * @dev Thrown when the provided address is address(0)
-     */
-    error InvalidDragonAddress();
-
-    /**
-     * @dev Thrown when the function caller is not authorized or expected.
-     */
-    error InvalidCaller();
-
-    /**
-     * @dev Thrown when trying to buy and burn DragonX but the cooldown period is still active.
-     */
-    error CooldownPeriodActive();
-
-    /**
-     * @dev Thrown when trying to buy and burn DragonX but there is no WETH in the contract.
-     */
-    error NoWethToBuyAndBurnDragon();
-
-    // -----------------------------------------
     // Events
     // -----------------------------------------
     /**
@@ -174,6 +149,29 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
         uint256 indexed titan,
         address indexed caller
     );
+
+    // -----------------------------------------
+    // Errors
+    // -----------------------------------------
+    /**
+     * @dev Thrown when the provided address is address(0)
+     */
+    error InvalidDragonAddress();
+
+    /**
+     * @dev Thrown when the function caller is not authorized or expected.
+     */
+    error InvalidCaller();
+
+    /**
+     * @dev Thrown when trying to buy and burn DragonX but the cooldown period is still active.
+     */
+    error CooldownPeriodActive();
+
+    /**
+     * @dev Thrown when trying to buy and burn DragonX but there is no WETH in the contract.
+     */
+    error NoWethToBuyAndBurnDragon();
 
     // -----------------------------------------
     // Modifiers
@@ -250,8 +248,11 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256 amountOut)
     {
+        // Cache state variables
+        address dragonAddress_ = dragonAddress;
+
         // Ensure DragonX address has been set
-        if (DRAGONX_ADDRESS == address(0)) {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
         //prevent contract accounts (bots) from calling this function
@@ -292,7 +293,7 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             FEE_TIER,
             TITANX_ADDRESS,
             FEE_TIER,
-            DRAGONX_ADDRESS
+            dragonAddress_
         );
 
         uint256 amountOutMinimum = calculateMinimumDragonAmount(amountIn);
@@ -311,7 +312,7 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
         amountOut = swapRouter.exactInput(params);
 
         // Burn the DragonX bought
-        DragonX(payable(DRAGONX_ADDRESS)).burn();
+        DragonX(payable(dragonAddress_)).burn();
 
         // Update state
         totalWethUsedForBuyAndBurns += amountIn;
@@ -340,14 +341,18 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
      *      Uses the `nonReentrant` modifier to prevent reentrancy attacks.
      * @custom:modifier nonReentrant Ensures the function cannot be re-entered while it is being executed.
      */
-    function collectFees() public nonReentrant {
+    function collectFees() external nonReentrant {
+        // Cache state variables
+        address dragonAddress_ = dragonAddress;
+        address titanAddress_ = TITANX_ADDRESS;
+
         address sender = _msgSender();
         (uint256 amount0, uint256 amount1) = _collectFees();
 
         uint256 dragon;
         uint256 titan;
 
-        if (DRAGONX_ADDRESS < TITANX_ADDRESS) {
+        if (dragonAddress_ < titanAddress_) {
             dragon = amount0;
             titan = amount1;
         } else {
@@ -359,10 +364,10 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
         totalTitanFeeCollected += titan;
         totalDragonBurned += dragon;
 
-        DragonX dragonX = DragonX(payable(DRAGONX_ADDRESS));
+        DragonX dragonX = DragonX(payable(dragonAddress_));
         dragonX.burn();
 
-        IERC20(TITANX_ADDRESS).safeTransfer(DRAGONX_ADDRESS, titan);
+        IERC20(titanAddress_).safeTransfer(dragonAddress_, titan);
         dragonX.updateVault();
 
         emit CollectedFees(dragon, titan, sender);
@@ -377,13 +382,16 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
     function createInitialLiquidity(
         uint256 initialLiquidityAmount
     ) external onlyOwner {
+        // Cache state variables
+        address dragonAddress_ = dragonAddress;
+
         // Verify that the DragonX token address is set
-        if (DRAGONX_ADDRESS == address(0)) {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
 
         // Initialize DragonX and TitanX token interfaces
-        DragonX dragonX = DragonX(payable(DRAGONX_ADDRESS));
+        DragonX dragonX = DragonX(payable(dragonAddress_));
         IERC20 titanX = IERC20(TITANX_ADDRESS);
 
         // Mint the initial DragonX liquidity.
@@ -461,14 +469,14 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
      * @notice Sets the address of the DragonX contract
      * @dev This function allows the contract owner to update the address of the contract contract.
      * It includes a check to prevent setting the address to the zero address.
-     * @param dragonX The new address to be set for the contract.
+     * @param dragonAddress_ The new address to be set for the contract.
      * @custom:revert InvalidAddress If the provided address is the zero address.
      */
-    function setDragonContractAddress(address dragonX) external onlyOwner {
-        if (dragonX == address(0)) {
+    function setDragonContractAddress(address dragonAddress_) external onlyOwner {
+        if (dragonAddress_ == address(0)) {
             revert InvalidDragonAddress();
         }
-        DRAGONX_ADDRESS = dragonX;
+        dragonAddress = dragonAddress_;
     }
 
     /**
@@ -593,9 +601,13 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
     function getDragonQuoteForTitan(
         uint256 baseAmount
     ) public view returns (uint256 quote) {
+        // Cache state variables
+        address titanAddress_ = TITANX_ADDRESS;
+        address dragonAddress_ = dragonAddress;
+
         address poolAddress = PoolAddress.computeAddress(
             UNI_FACTORY,
-            PoolAddress.getPoolKey(DRAGONX_ADDRESS, TITANX_ADDRESS, FEE_TIER)
+            PoolAddress.getPoolKey(dragonAddress_, titanAddress_, FEE_TIER)
         );
         uint32 secondsAgo = _dragonPriceTwa * 60;
         uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(
@@ -627,8 +639,8 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             OracleLibrary.getQuoteForSqrtRatioX96(
                 sqrtPriceX96,
                 baseAmount,
-                TITANX_ADDRESS,
-                DRAGONX_ADDRESS
+                titanAddress_,
+                dragonAddress_
             );
     }
 
@@ -642,10 +654,13 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
      * If the balance exceeds `capPerSwap`, `forBuy` is set to `capPerSwap`.
      */
     function wethForNextBuyAndBurn() public view returns (uint256 forBuy) {
+        // Cache state variables
+        uint256 capPerSwap_ = capPerSwap;
+
         IERC20 weth = IERC20(WETH9_ADDRESS);
         forBuy = weth.balanceOf(address(this));
-        if (forBuy > capPerSwap) {
-            forBuy = capPerSwap;
+        if (forBuy > capPerSwap_) {
+            forBuy = capPerSwap_;
         }
     }
 
@@ -666,14 +681,15 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
     function calculateMinimumDragonAmount(
         uint256 amountIn
     ) public view returns (uint256) {
-        // Ensure slippage is defined and accessible here, e.g., as a state variable
+        // Cache state variable
+        uint256 slippage_ = slippage;
 
         // Calculate the expected amount of TITAN for the given amount of ETH
         uint256 expectedTitanAmount = getTitanQuoteForEth(amountIn);
 
         // Adjust for slippage (applied uniformly across both hops)
-        uint256 adjustedTitanAmount = (expectedTitanAmount * (100 - slippage)) /
-            100;
+        uint256 adjustedTitanAmount = (expectedTitanAmount *
+            (100 - slippage_)) / 100;
 
         // Calculate the expected amount of DRAGON for the adjusted amount of TITAN
         uint256 expectedDragonAmount = getDragonQuoteForTitan(
@@ -681,7 +697,7 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
         );
 
         // Adjust for slippage again
-        uint256 amountOutMinimum = (expectedDragonAmount * (100 - slippage)) /
+        uint256 amountOutMinimum = (expectedDragonAmount * (100 - slippage_)) /
             100;
 
         return amountOutMinimum;
@@ -715,13 +731,17 @@ contract DragonBuyAndBurn is Ownable, ReentrancyGuard {
             uint256 amount1
         )
     {
-        token0 = TITANX_ADDRESS;
-        token1 = DRAGONX_ADDRESS;
+        // Cache state variables
+        address dragonAddress_ = dragonAddress;
+        address titanAddress_ = TITANX_ADDRESS;
+
+        token0 = titanAddress_;
+        token1 = dragonAddress_;
         amount0 = initialLiquidityAmount;
         amount1 = initialLiquidityAmount;
-        if (DRAGONX_ADDRESS < TITANX_ADDRESS) {
-            token0 = DRAGONX_ADDRESS;
-            token1 = TITANX_ADDRESS;
+        if (dragonAddress_ < titanAddress_) {
+            token0 = dragonAddress_;
+            token1 = titanAddress_;
         }
     }
 

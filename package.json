@@ -6,15 +6,17 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.13.1",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
-    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.3",
+    "@nomicfoundation/ignition-core": "^0.13.1",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.10.6",
     "chai": "^4.2.0",
-    "ethers": "^6.9.2",
+    "ethers": "^6.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "solidity-coverage": "^0.8.0",
     "ts-node": "^10.9.2",
@@ -22,6 +24,9 @@
     "typescript": "^5.3.3"
   },
   "scripts": {
+    "contracts:deploy-local": "hardhat ignition deploy ignition/modules/DragonX.ts --network frame_local",
+    "contracts:deploy": "hardhat ignition deploy ignition/modules/Apollo.ts --network frame_mainnet",
+    "contracts:verify": "hardhat ignition verify chain-1",
     "contracts:cloc": "cloc contracts --exclude-dir mocks",
     "contracts:compile": "hardhat compile",
     "contracts:size": "hardhat size-contracts",
@@ -30,6 +35,7 @@
     "contracts:coverage": "hardhat coverage",
     "dev:local:node": "hardhat run ./scripts/hardhat-node.ts",
     "dev:local:run": "concurrently \"hardhat run ./scripts/hardhat-node.ts\" \"cross-env wait-on http-get://127.0.0.1:8545 && hardhat run scripts/local.ts --network localnode\"",
+    "dev:local:run-ignition": "concurrently \"hardhat run ./scripts/hardhat-node.ts\" \"cross-env wait-on http-get://127.0.0.1:8545 && hardhat run scripts/local-ignition.ts --network localnode\"",
     "dev:local:run-init": "concurrently \"hardhat run ./scripts/hardhat-node.ts\" \"cross-env wait-on http-get://127.0.0.1:8545 && hardhat run scripts/local-init.ts --network localnode\"",
     "dev:local:set-timestamp": "hardhat set-timestamp --network localnode",
     "dev:local:get-timestamp": "hardhat get-timestamp --network localnode",
@@ -37,6 +43,7 @@
     "dev:titanx:quote": "hardhat run scripts/titanx-quote.ts"
   },
   "dependencies": {
+    "@nomicfoundation/hardhat-ignition": "^0.13.1",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@openzeppelin/contracts": "^5.0.1",
     "@types/cli-progress": "^3.11.5",

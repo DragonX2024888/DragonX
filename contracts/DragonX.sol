@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // Library
@@ -19,7 +19,7 @@ import "./lib/interfaces/ITitanX.sol";
  * @title The DragonX Contranct
  * @author The DragonX devs
  */
-contract DragonX is ERC20, Ownable, ReentrancyGuard {
+contract DragonX is ERC20, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for ITitanX;
 
@@ -34,13 +34,13 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * @notice The TitanX buy contract address.
      * Set at runtime, this address allows for upgrading the buy contract version.
      */
-    address public TITANX_BUY;
+    address public titanBuyAddress;
 
     /**
      * @notice The DragonX buy and burn contract address.
      * Set at runtime, this allows for upgrading the DragonX buy and burn contract.
      */
-    address public DRAGONX_BUY_AND_BURN;
+    address public dragonBuyAndBurnAddress;
 
     /**
      * @notice The start time of the mint phase, expressed in UTC seconds.
@@ -140,6 +140,52 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     mapping(address => bool) private _dragonStakeAllowlist;
 
     // -----------------------------------------
+    // Events
+    // -----------------------------------------
+    /**
+     * @dev Event emitted when a new Dragon stake instance is created.
+     * @param stakeContractId Unique identifier of the stake contract.
+     * @param stakeContractAddress Address of the newly created stake contract.
+     */
+    event DragonStakeInstanceCreated(
+        uint256 indexed stakeContractId,
+        address indexed stakeContractAddress
+    );
+
+    /**
+     * @notice Emitted when staking rewards are claimed.
+     * @param caller The address of the caller who initiated the transaction.
+     * @param totalClaimed The total amount of ETH claimed.
+     * @param titanBuy Amount transfered to TitanBuy.
+     * @param dragonBuyAndBurn Amount transfered to DragonBuyAndBurn
+     * @param genesis Amount accounted to genesis
+     * @param incentiveFee Incentive see send to caller
+     * (this might include the incentice for calling triggerPayouts on TitanX)
+     */
+    event Claimed(
+        address indexed caller,
+        uint256 indexed totalClaimed,
+        uint256 titanBuy,
+        uint256 dragonBuyAndBurn,
+        uint256 genesis,
+        uint256 incentiveFee
+    );
+
+    /**
+     * @notice Emitted when a new TitanX stake is opened by Dragonx
+     * @param dragonStakeAddress The DragonStake instance used for this stake
+     * @param amount The amount staked
+     */
+    event TitanStakeStarted(address indexed dragonStakeAddress, uint256 amount);
+
+    /**
+     * @notice Emitted when TitanX stakes are ended by Dragonx
+     * @param dragonStakeAddress The DragonStake instance used for this action
+     * @param amount The amount unstaked
+     */
+    event TitanStakesEnded(address indexed dragonStakeAddress, uint256 amount);
+
+    // -----------------------------------------
     // Errors
     // -----------------------------------------
     /**
@@ -185,18 +231,6 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     error NoEthClaimable();
 
     /**
-     * @dev Error emitted when the DragonX Buy and Burn contract is not configured.
-     * This is required for certain operations involving the DragonX Buy and Burn mechanism.
-     */
-    error DragonXBuyAndBurnContractNotConfigured();
-
-    /**
-     * @dev Error emitted when the TitanX Buy contract is not configured.
-     * Indicates a configuration issue for operations involving the TitanX Buy contract.
-     */
-    error TitanXBuyContractNotConfigured();
-
-    /**
      * @dev Error emitted when there are no tokens available to stake.
      * This ensures that the staking operation is only executed when there are tokens to be staked.
      */
@@ -220,61 +254,9 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     error LiquidityNotMintedYet();
 
     /**
-     * @dev Error emitted when a user attempts to end stakes on a DragonStake instance
-     * but there are no stakes to end
-     */
-    error NoStakesToEnd();
-
-    /**
      * @dev Thrown when the function caller is not authorized or expected.
      */
     error InvalidCaller();
-
-    // -----------------------------------------
-    // Events
-    // -----------------------------------------
-    /**
-     * @dev Event emitted when a new Dragon stake instance is created.
-     * @param stakeContractId Unique identifier of the stake contract.
-     * @param stakeContractAddress Address of the newly created stake contract.
-     */
-    event DragonStakeInstanceCreated(
-        uint256 stakeContractId,
-        address stakeContractAddress
-    );
-
-    /**
-     * @notice Emitted when staking rewards are claimed.
-     * @param caller The address of the caller who initiated the transaction.
-     * @param totalClaimed The total amount of ETH claimed.
-     * @param titanBuy Amount transfered to TitanBuy.
-     * @param dragonBuyAndBurn Amount transfered to DragonBuyAndBurn
-     * @param genesis Amount accounted to genesis
-     * @param incentiveFee Incentive see send to caller
-     * (this might include the incentice for calling triggerPayouts on TitanX)
-     */
-    event Claimed(
-        address indexed caller,
-        uint256 indexed totalClaimed,
-        uint256 titanBuy,
-        uint256 dragonBuyAndBurn,
-        uint256 genesis,
-        uint256 incentiveFee
-    );
-
-    /**
-     * @notice Emitted when a new TitanX stake is opened by Dragonx
-     * @param dragonStakeAddress The DragonStake instance used for this stake
-     * @param amount The amount staked
-     */
-    event TitanStakeStarted(address indexed dragonStakeAddress, uint256 amount);
-
-    /**
-     * @notice Emitted when TitanX stakes are ended by Dragonx
-     * @param dragonStakeAddress The DragonStake instance used for this action
-     * @param amount The amount unstaked
-     */
-    event TitanStakesEnded(address indexed dragonStakeAddress, uint256 amount);
 
     // -----------------------------------------
     // Modifiers
@@ -304,19 +286,26 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      *      - Deploys the first DragonStake contract instance.
      *      - Transfers ownership to contract deployer.
      *      - Set the initial TitanBuy and DragonBuyAndBurn contract addresses.
-     * @param titanBuy The address of the TitanBuy contract instance.
-     * @param dragonBuyAndBurn The address of the DragonBuyAndBurn contract instance.
+     * @param titanBuyAddress_ The address of the TitanBuy contract instance.
+     * @param dragonBuyAndBurnAdddress_ The address of the DragonBuyAndBurn contract instance.
      */
     constructor(
-        address titanBuy,
-        address dragonBuyAndBurn
+        address titanBuyAddress_,
+        address dragonBuyAndBurnAdddress_
     ) ERC20("DragonX", "DRAGONX") Ownable(msg.sender) {
+        if (titanBuyAddress_ == address(0)) {
+            revert InvalidAddress();
+        }
+        if (dragonBuyAndBurnAdddress_ == address(0)) {
+            revert InvalidAddress();
+        }
+
         // Deploy stake contract instance setting DragonX as its owner
         _deployDragonStakeInstance();
 
         // Set contract addresses
-        TITANX_BUY = titanBuy;
-        DRAGONX_BUY_AND_BURN = dragonBuyAndBurn;
+        titanBuyAddress = titanBuyAddress_;
+        dragonBuyAndBurnAddress = dragonBuyAndBurnAdddress_;
 
         // set other states
         initalLiquidityMinted = InitialLiquidityMinted.No;
@@ -361,6 +350,9 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * @param amount The amount of DragonX tokens to be minted.
      */
     function mint(uint256 amount) external {
+        // Cache state variables
+        uint256 mintPhaseBegin_ = mintPhaseBegin;
+
         // To avoid being frontrun, minting creating DragonX tokens will only
         // be able once the inital liqudiity ahs been created
         if (initalLiquidityMinted != InitialLiquidityMinted.Yes) {
@@ -368,7 +360,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         }
 
         // Check if the minting phase is currently active
-        if (block.timestamp < mintPhaseBegin) {
+        if (block.timestamp < mintPhaseBegin_) {
             revert MintingNotYetActive();
         }
 
@@ -389,37 +381,37 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         titanX.safeTransferFrom(_msgSender(), address(this), amount);
 
         uint256 ratio;
-        if (block.timestamp < mintPhaseBegin + 7 days) {
+        if (block.timestamp < mintPhaseBegin_ + 7 days) {
             // week 1
             ratio = mintRatioWeekOne;
-        } else if (block.timestamp < mintPhaseBegin + 14 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 14 days) {
             // week 2
             ratio = mintRatioWeekTwo;
-        } else if (block.timestamp < mintPhaseBegin + 21 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 21 days) {
             // week 3
             ratio = mintRatioWeekThree;
-        } else if (block.timestamp < mintPhaseBegin + 28 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 28 days) {
             // week 4
             ratio = mintRatioWeekFour;
-        } else if (block.timestamp < mintPhaseBegin + 35 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 35 days) {
             // week 5
             ratio = mintRatioWeekFive;
-        } else if (block.timestamp < mintPhaseBegin + 42 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 42 days) {
             // week 6
             ratio = mintRatioWeekSix;
-        } else if (block.timestamp < mintPhaseBegin + 49 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 49 days) {
             // week 7
             ratio = mintRatioWeekSeven;
-        } else if (block.timestamp < mintPhaseBegin + 56 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 56 days) {
             // week 8
             ratio = mintRatioWeekEight;
-        } else if (block.timestamp < mintPhaseBegin + 63 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 63 days) {
             // weeek 9
             ratio = mintRatioWeekNine;
-        } else if (block.timestamp < mintPhaseBegin + 70 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 70 days) {
             // week 10
             ratio = mintRatioWeekTen;
-        } else if (block.timestamp < mintPhaseBegin + 77 days) {
+        } else if (block.timestamp < mintPhaseBegin_ + 77 days) {
             // week 11
             ratio = mintRatioWeekEleven;
         } else {
@@ -468,11 +460,15 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         }
 
         updateVault();
-        if (vault == 0) {
+
+        // Cache state variables
+        uint256 vault_ = vault;
+
+        if (vault_ == 0) {
             revert NoTokensToStake();
         }
 
-        if (vault >= TITANX_BPB_MAX_TITAN) {
+        if (vault_ >= TITANX_BPB_MAX_TITAN) {
             // Start a stake using the currently active DragonStake instance
             _startStake();
 
@@ -509,15 +505,6 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      *      6. Sends the tip to the caller of the function.
      */
     function claim() external nonReentrant returns (uint256 claimedAmount) {
-        // Ensure valid configuration before proceeding
-        if (DRAGONX_BUY_AND_BURN == address(0)) {
-            revert DragonXBuyAndBurnContractNotConfigured();
-        }
-
-        if (TITANX_BUY == address(0)) {
-            revert TitanXBuyContractNotConfigured();
-        }
-
         //prevent contract accounts (bots) from calling this function
         if (msg.sender != tx.origin) {
             revert InvalidCaller();
@@ -532,7 +519,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
             ethBalanceBefore;
 
         // Retrieve the total claimable ETH amount.
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
             DragonStake dragonStake = DragonStake(
                 payable(dragonStakeContracts[idx])
             );
@@ -563,10 +550,10 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         _genesisVault[address(0)] += genesisShare;
 
         // Send to the Buy and Burn contract for DragonX.
-        Address.sendValue(payable(DRAGONX_BUY_AND_BURN), buyAndBurnDragonX);
+        Address.sendValue(payable(dragonBuyAndBurnAddress), buyAndBurnDragonX);
 
         // Send to the buy contract for TitanX.
-        Address.sendValue(payable(TITANX_BUY), buyTitanX);
+        Address.sendValue(payable(titanBuyAddress), buyTitanX);
 
         // Send the tip to the function caller.
         address sender = _msgSender();
@@ -617,8 +604,11 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      * @param amount The amount of DragonX tokens to be minted for initial liquidity.
      */
     function mintInitialLiquidity(uint256 amount) external {
+        // Cache state variables
+        address dragonBuyAndBurnAddress_ = dragonBuyAndBurnAddress;
+
         // Verify that the caller is authorized to mint initial liquidity
-        require(msg.sender == DRAGONX_BUY_AND_BURN, "not authorized");
+        require(msg.sender == dragonBuyAndBurnAddress_, "not authorized");
 
         // Ensure that initial liquidity hasn't been minted before
         require(
@@ -627,7 +617,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         );
 
         // Mint the specified amount of DragonX tokens to the authorized address
-        _mint(DRAGONX_BUY_AND_BURN, amount);
+        _mint(dragonBuyAndBurnAddress_, amount);
 
         // Update the state to reflect that initial liquidity has been minted
         initalLiquidityMinted = InitialLiquidityMinted.Yes;
@@ -638,11 +628,16 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
 
         // The mint phase is open for 84 days (12 weeks) and begins at midnight
         // once contracts are fully set up
-        mintPhaseBegin = currentTimestamp + secondsUntilMidnight;
-        mintPhaseEnd = mintPhaseBegin + 84 days;
+        uint256 mintPhaseBegin_ = currentTimestamp + secondsUntilMidnight;
+
+        // Update storage
+        mintPhaseBegin = mintPhaseBegin_;
+
+        // Set mint phase end
+        mintPhaseEnd = mintPhaseBegin_ + 84 days;
 
         // Allow the first stake after 7 days of mint-phase begin
-        nextStakeTs = mintPhaseBegin + 7 days;
+        nextStakeTs = mintPhaseBegin_ + 7 days;
     }
 
     /**
@@ -670,7 +665,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      */
     function totalStakesOpened() external view returns (uint256 totalStakes) {
         // Iterate over all DragonStake contract instances
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
             // Get a reference to each DragonStake contract
             DragonStake dragonStake = DragonStake(
                 payable(dragonStakeContracts[idx])
@@ -697,6 +692,41 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Checks all DragonStake contract instances to determine if any stake has reached maturity.
+     *      Iterates through each DragonStake contract instance and checks for stakes that have reached maturity.
+     *      If a stake has reached maturity in a particular instance, it returns true along with the instance's address and the ID.
+     *      If no stakes have reached maturity in any instance, it returns false and a zero address and zero for the ID.
+     * @return hasStakesToEnd A boolean indicating if there is at least one stake that has reached maturity.
+     * @return instanceAddress The address of the DragonStake contract instance that has a stake which reached maturity.
+     * @return sId The ID of the stake which reached maturity
+     *         Returns zero address if no such instance is found.
+     * @notice This function is used to identify if and where stakes have reached maturity across multiple contract instances.
+     */
+    function stakeReachedMaturity()
+        external
+        view
+        returns (bool hasStakesToEnd, address instanceAddress, uint256 sId)
+    {
+        // Iterate over all DragonStake contract instances
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
+            address instance = dragonStakeContracts[idx];
+
+            // Get a reference to each DragonStake contract
+            DragonStake dragonStake = DragonStake(payable(instance));
+
+            (bool reachedMaturity, uint256 id) = dragonStake
+                .stakeReachedMaturity();
+
+            // Exit if this instance contains a stake that reached maturity
+            if (reachedMaturity) {
+                return (true, instance, id);
+            }
+        }
+
+        return (false, address(0), 0);
+    }
+
+    /**
      * @dev Sets the address used for buying and burning DRAGONX tokens.
      * @notice This function can only be called by the contract owner.
      * @param dragonBuyAndBurn The address to be set for the DRAGONX buy and burn operation.
@@ -709,7 +739,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         if (dragonBuyAndBurn == address(0)) {
             revert InvalidAddress();
         }
-        DRAGONX_BUY_AND_BURN = dragonBuyAndBurn;
+        dragonBuyAndBurnAddress = dragonBuyAndBurn;
     }
 
     /**
@@ -723,7 +753,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         if (titanBuy == address(0)) {
             revert InvalidAddress();
         }
-        TITANX_BUY = titanBuy;
+        titanBuyAddress = titanBuy;
     }
 
     /**
@@ -805,7 +835,7 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      */
     function totalEthClaimable() public view returns (uint256 claimable) {
         // Iterate over all DragonStake contract instances
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
+        for (uint256 idx; idx < numDragonStakeContracts; idx++) {
             // Get a reference to each DragonStake contract
             DragonStake dragonStake = DragonStake(
                 payable(dragonStakeContracts[idx])
@@ -814,41 +844,6 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
             // Add the claimable ETH from each DragonStake to the total
             claimable += dragonStake.totalEthClaimable();
         }
-    }
-
-    /**
-     * @dev Checks all DragonStake contract instances to determine if any stake has reached maturity.
-     *      Iterates through each DragonStake contract instance and checks for stakes that have reached maturity.
-     *      If a stake has reached maturity in a particular instance, it returns true along with the instance's address and the ID.
-     *      If no stakes have reached maturity in any instance, it returns false and a zero address and zero for the ID.
-     * @return hasStakesToEnd A boolean indicating if there is at least one stake that has reached maturity.
-     * @return instanceAddress The address of the DragonStake contract instance that has a stake which reached maturity.
-     * @return sId The ID of the stake which reached maturity
-     *         Returns zero address if no such instance is found.
-     * @notice This function is used to identify if and where stakes have reached maturity across multiple contract instances.
-     */
-    function stakeReachedMaturity()
-        external
-        view
-        returns (bool hasStakesToEnd, address instanceAddress, uint256 sId)
-    {
-        // Iterate over all DragonStake contract instances
-        for (uint256 idx = 0; idx < numDragonStakeContracts; idx++) {
-            address instance = dragonStakeContracts[idx];
-
-            // Get a reference to each DragonStake contract
-            DragonStake dragonStake = DragonStake(payable(instance));
-
-            (bool reachedMaturity, uint256 id) = dragonStake
-                .stakeReachedMaturity();
-
-            // Exit if this instance contains a stake that reached maturity
-            if (reachedMaturity) {
-                return (true, instance, id);
-            }
-        }
-
-        return (false, address(0), 0);
     }
 
     // -----------------------------------------
@@ -876,19 +871,24 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         );
 
         // Deploy a new DragonStake contract instance
-        activeDragonStakeContract = Create2.deploy(0, salt, bytecode);
-        dragonStakeContracts[stakeContractId] = activeDragonStakeContract;
+        address newDragonStakeContract = Create2.deploy(0, salt, bytecode);
+
+        // Set new contract as active
+        activeDragonStakeContract = newDragonStakeContract;
+
+        // Update storage
+        dragonStakeContracts[stakeContractId] = newDragonStakeContract;
 
         // Allow the DragonStake instance to send ETH to DragonX
-        _receiveEthAllowlist[activeDragonStakeContract] = true;
+        _receiveEthAllowlist[newDragonStakeContract] = true;
 
         // For functions limited to DragonStake
-        _dragonStakeAllowlist[activeDragonStakeContract] = true;
+        _dragonStakeAllowlist[newDragonStakeContract] = true;
 
         // Emit an event to track the creation of a new stake contract
         emit DragonStakeInstanceCreated(
             stakeContractId,
-            activeDragonStakeContract
+            newDragonStakeContract
         );
 
         // Increment the counter for DragonStake contracts
@@ -902,16 +902,19 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
      *      This function is meant to be called internally by other contract functions.
      */
     function _startStake() private {
+        // Cache state variables
+        address activeDragonStakeContract_ = activeDragonStakeContract;
+
         // Initialize TitanX contract reference
         ITitanX titanX = ITitanX(TITANX_ADDRESS);
         DragonStake dragonStake = DragonStake(
-            payable(activeDragonStakeContract)
+            payable(activeDragonStakeContract_)
         );
         uint256 amountToStake = vault;
         vault = 0;
 
         // Transfer TitanX tokens to the active DragonStake contract
-        titanX.safeTransfer(activeDragonStakeContract, amountToStake);
+        titanX.safeTransfer(activeDragonStakeContract_, amountToStake);
 
         // Open a new stake with the total amount transferred
         dragonStake.stake();
@@ -920,6 +923,6 @@ contract DragonX is ERC20, Ownable, ReentrancyGuard {
         totalTitanStaked += amountToStake;
 
         // Emit event
-        emit TitanStakeStarted(activeDragonStakeContract, amountToStake);
+        emit TitanStakeStarted(activeDragonStakeContract_, amountToStake);
     }
 }

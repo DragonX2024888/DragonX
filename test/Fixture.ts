@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat'
+import { ethers, ignition } from 'hardhat'
 import {
   time,
 } from '@nomicfoundation/hardhat-toolbox/network-helpers'
@@ -8,6 +8,7 @@ import * as progress from 'cli-progress'
 import { DragonX, TitanBuy, DragonBuyAndBurn } from '../typechain-types/contracts'
 import { SwapHelper } from '../typechain-types/contracts/mocks'
 import { iTitanXSol } from '../typechain-types/contracts/lib/interfaces'
+import IgniteDragonX from '../ignition/modules/DragonX'
 
 import * as Constants from './Constants'
 
@@ -28,31 +29,23 @@ export async function deployDragonXFixture(): Promise<Fixture> {
   const [genesis, user, firstUser, ...others] = await ethers.getSigners()
 
   // Factories
-  const fDragonX = await ethers.getContractFactory('DragonX')
   const fSwap = await ethers.getContractFactory('SwapHelper')
-  const fTitanBuy = await ethers.getContractFactory('TitanBuy')
-  const fDragonBuyAndBurn = await ethers.getContractFactory('DragonBuyAndBurn')
 
-  // Deploy/Get contracts
-  const titanX = await ethers.getContractAt('ITitanX', '0xF19308F923582A6f7c465e5CE7a9Dc1BEC6665B1')
-  const titanBuy = await fTitanBuy.deploy()
+  // Buy initial liquidity
   const swap = await fSwap.deploy()
-  const dragonBuyAndBurn = await fDragonBuyAndBurn.deploy()
-  const dragonX = await fDragonX.deploy(
-    await titanBuy.getAddress(),
-    await dragonBuyAndBurn.getAddress(),
-  )
+  const titanX = await ethers.getContractAt('ITitanX', '0xF19308F923582A6f7c465e5CE7a9Dc1BEC6665B1')
+  await swap.connect(genesis).swapETHForTitanX({ value: ethers.parseEther('28') })
+
+  // Deploy with ignition
+  const deployment = await ignition.deploy(IgniteDragonX)
+  const dragonX: DragonX = deployment.dragonX as unknown as DragonX
+  const titanBuy: TitanBuy = deployment.titanBuy as unknown as TitanBuy
+  const dragonBuyAndBurn: DragonBuyAndBurn = deployment.dragonBuyAndBurn as unknown as DragonBuyAndBurn
+
+  const initialLiquidity = await dragonX.totalSupply()
 
   await titanBuy.setDragonContractAddress(await dragonX.getAddress())
   await dragonBuyAndBurn.setDragonContractAddress(await dragonX.getAddress())
-
-  // The genesis address market-buys TitanX for initial liquidtiy
-  await swap.connect(genesis).swapETHForTitanX({ value: ethers.parseEther('28') })
-  const initialLiquidity = await titanX.balanceOf(genesis.address)
-  await titanX.connect(genesis).approve(await dragonBuyAndBurn.getAddress(), initialLiquidity)
-
-  // Mint initial liquidity
-  await dragonBuyAndBurn.connect(genesis).createInitialLiquidity(initialLiquidity)
 
   // Swap 1 TitanX for DragonX to make sure at least one observation entry in LP pool exists
   await swap.connect(firstUser).swapETHForTitanX({ value: ethers.parseEther('0.1') })
