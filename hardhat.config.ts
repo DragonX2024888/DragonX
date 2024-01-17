@@ -3,6 +3,7 @@ import { HardhatUserConfig, task } from 'hardhat/config'
 import { time } from '@nomicfoundation/hardhat-toolbox/network-helpers'
 import '@nomicfoundation/hardhat-toolbox'
 import 'hardhat-contract-sizer'
+import '@nomicfoundation/hardhat-ignition-ethers'
 
 // Custom Tasks
 task('set-timestamp', 'Set the blockchain timestamp')
